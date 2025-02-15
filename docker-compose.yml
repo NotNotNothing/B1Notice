@@ -6,6 +6,11 @@ services:
     ports:
       - "3100:3000"
     restart: unless-stopped
+    environment:
+      - LONGPORT_APP_KEY=${LONGPORT_APP_KEY}
+      - LONGPORT_APP_SECRET=${LONGPORT_APP_SECRET}
+      - LONGPORT_ACCESS_TOKEN=${LONGPORT_ACCESS_TOKEN}
+      - DATABASE_URL=${DATABASE_URL}
     networks:
       - app-network
 
