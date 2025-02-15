@@ -16,6 +16,7 @@ model Stock {
   name      String
   market    String
   monitors  Monitor[]
+  kdjs Kdj[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 }
@@ -41,4 +42,18 @@ model Notification {
   status    String   // PENDING, SENT, FAILED
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Kdj {
+  id        String   @id @default(cuid())
+  stockId   String
+  stock     Stock    @relation(fields: [stockId], references: [id])
+  k         Float
+  d         Float
+  j         Float
+  date      DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([stockId, date])
 }

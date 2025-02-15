@@ -10,6 +10,7 @@ import { prisma } from './prisma';
 import { getLongBridgeClient } from '../server/longbridge/client';
 import schedule from 'node-schedule';
 import { LongBridgeClient } from '../server/longbridge/client';
+import { sendCanBuyMessageByPushDeer } from '@/server/pushdeer';
 
 interface Monitor {
   id: string;
@@ -32,10 +33,18 @@ interface IndicatorData {
 }
 
 export class MonitorScheduler {
-  private readonly longBridgeClient: LongBridgeClient;
+  private longBridgeClient: LongBridgeClient;
 
   constructor() {
-    this.longBridgeClient = getLongBridgeClient();
+    try {
+      this.longBridgeClient = getLongBridgeClient();
+      if (!this.longBridgeClient) {
+        throw new Error('Failed to initialize LongBridge client');
+      }
+    } catch (error) {
+      console.error('Error initializing LongBridge client:', error);
+      throw error;
+    }
   }
 
   async checkIndicator(monitor: Monitor) {
@@ -125,33 +134,134 @@ export class MonitorScheduler {
     }
   }
 
-  async startMonitoring() {
-    // 每分钟检查一次活跃的监控规则
-    schedule.scheduleJob('* * * * *', async () => {
-      const activeMonitors = await prisma.monitor.findMany({
-        where: { isActive: true },
-        include: {
-          stock: true,
+  private async calculateDailyKDJ(scope: string[] = []) {
+    try {
+      // 获取所有股票
+      const stocks = await prisma.stock.findMany({
+        where: {
+          market: {
+            in: scope,
+          },
         },
       });
+      console.log(`开始处理${stocks.length}支股票的KDJ数据`);
 
-      // 映射数据库结果到 Monitor 类型
-      const monitors: Monitor[] = activeMonitors.map((dbMonitor) => ({
-        id: dbMonitor.id,
-        stockId: dbMonitor.stockId,
-        isActive: dbMonitor.isActive,
-        condition: dbMonitor.condition as Monitor['condition'],
-        type: dbMonitor.type as Monitor['type'],
-        value: dbMonitor.threshold,
-        stock: {
-          symbol: dbMonitor.stock.symbol,
-          name: dbMonitor.stock.name,
-        },
-      }));
-
-      for (const monitor of monitors) {
-        await this.checkIndicator(monitor);
+      if (!stocks || stocks.length === 0) {
+        console.error('没有找到任何股票数据');
+        return;
       }
+
+      for (const stock of stocks) {
+        try {
+          console.log(`开始计算 ${stock.symbol} 的KDJ数据`);
+
+          // 确保 longBridgeClient 已正确初始化
+          if (!this.longBridgeClient) {
+            console.error(
+              'LongBridge client not initialized, reinitializing...',
+            );
+            this.longBridgeClient = getLongBridgeClient();
+            if (!this.longBridgeClient) {
+              throw new Error('Failed to reinitialize LongBridge client');
+            }
+          }
+
+          // 添加延迟以避免API限制
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+
+          const kdjData = await this.longBridgeClient.calculateKDJ(
+            stock.symbol,
+          );
+
+          if (!kdjData || !Array.isArray(kdjData) || kdjData.length === 0) {
+            console.error(`${stock.symbol} 的KDJ数据计算结果为空`);
+            continue;
+          }
+
+          const latestKDJ = kdjData[kdjData.length - 1];
+
+          if (
+            !latestKDJ ||
+            typeof latestKDJ.k !== 'number' ||
+            typeof latestKDJ.d !== 'number' ||
+            typeof latestKDJ.j !== 'number'
+          ) {
+            console.error(`${stock.symbol} 的KDJ数据格式不正确:`, latestKDJ);
+            continue;
+          }
+
+          if (latestKDJ.j < 0) {
+            await sendCanBuyMessageByPushDeer(
+              stock.symbol,
+              stock.name,
+              latestKDJ.j,
+            );
+          }
+
+          // 保存KDJ数据到数据库
+          await prisma.kdj.create({
+            data: {
+              stockId: stock.id,
+              k: latestKDJ.k,
+              d: latestKDJ.d,
+              j: latestKDJ.j,
+            },
+          });
+
+          console.log(
+            `成功计算并保存 ${stock.symbol} 的KDJ数据: K=${latestKDJ.k}, D=${latestKDJ.d}, J=${latestKDJ.j}`,
+          );
+        } catch (error) {
+          console.error(`计算 ${stock.symbol} 的KDJ数据失败:`, error);
+          // 继续处理下一支股票
+          continue;
+        }
+      }
+    } catch (error) {
+      console.error('执行每日KDJ计算任务失败:', error);
+      throw error;
+    }
+  }
+
+  async startMonitoring() {
+    // 每分钟检查一次活跃的监控规则
+    // schedule.scheduleJob('* * * * *', async () => {
+    //   const activeMonitors = await prisma.monitor.findMany({
+    //     where: { isActive: true },
+    //     include: {
+    //       stock: true,
+    //     },
+    //   });
+
+    //   // 映射数据库结果到 Monitor 类型
+    //   const monitors: Monitor[] = activeMonitors.map((dbMonitor) => ({
+    //     id: dbMonitor.id,
+    //     stockId: dbMonitor.stockId,
+    //     isActive: dbMonitor.isActive,
+    //     condition: dbMonitor.condition as Monitor['condition'],
+    //     type: dbMonitor.type as Monitor['type'],
+    //     value: dbMonitor.threshold,
+    //     stock: {
+    //       symbol: dbMonitor.stock.symbol,
+    //       name: dbMonitor.stock.name,
+    //     },
+    //   }));
+
+    //   for (const monitor of monitors) {
+    //     await this.checkIndicator(monitor);
+    //   }
+    // });
+
+    // 添加每日KDJ计算任务 - 每天14:55执行
+    // schedule.scheduleJob('47 00 * * *', async () => {
+    schedule.scheduleJob('55 14 * * *', async () => {
+      console.log('开始执行每日KDJ计算任务');
+      await this.calculateDailyKDJ(['SH', 'SZ']);
+    });
+    // 添加每日KDJ计算任务 - 每天14:55执行
+    schedule.scheduleJob('55 15 * * *', async () => {
+      console.log('开始执行每日KDJ计算任务');
+      await this.calculateDailyKDJ(['HK', 'US']);
     });
   }
 }

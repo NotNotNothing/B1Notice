@@ -1,0 +1,1 @@
+const { getLongBridgeClient } = require("./dist/server/longbridge/client"); async function test() { const client = getLongBridgeClient(); const kdjData = await client.calculateKDJ("AAPL.US"); console.log("KDJ Data:", kdjData); } test().catch(console.error);
