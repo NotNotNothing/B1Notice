@@ -9,26 +9,47 @@
 import { prisma } from './prisma';
 import { createLongBridgeClient } from './longbridge';
 import schedule from 'node-schedule';
+import { LongBridgeClient } from './longbridge';
+
+interface Monitor {
+  id: string;
+  stockId: string;
+  isActive: boolean;
+  condition: 'ABOVE' | 'BELOW';
+  type: 'PRICE' | 'VOLUME' | 'CHANGE_PERCENT' | 'KDJ_J';
+  value: number;
+  stock: {
+    symbol: string;
+    name: string;
+  };
+}
+
+interface Notification {
+  id: string;
+  monitorId: string;
+  message: string;
+  createdAt: Date;
+  status: 'PENDING' | 'SENT' | 'FAILED';
+}
 
 export class MonitorScheduler {
-  private readonly longBridgeClient: any;
+  private readonly longBridgeClient: LongBridgeClient;
 
-  constructor(apiKey: string) {
-    this.longBridgeClient = createLongBridgeClient(apiKey);
+  constructor() {
+    this.longBridgeClient = createLongBridgeClient();
   }
 
-  async checkIndicator(monitor: any) {
+  async checkIndicator(monitor: Monitor) {
     try {
-      const stock = await prisma.stock.findUnique({
-        where: { id: monitor.stockId }
-      });
+      const kdjData = await this.longBridgeClient.calculateKDJ(
+        monitor.stock.symbol,
+      );
+      if (!kdjData.length) return;
 
-      if (!stock) return;
+      const latestKDJ = kdjData[kdjData.length - 1];
+      const currentValue = this.getIndicatorValue(monitor.type, latestKDJ);
 
-      const indicators = await this.longBridgeClient.getIndicators(stock.symbol);
-      const currentValue = this.evaluateFormula(monitor.indicator.formula, indicators);
-
-      if (this.checkCondition(currentValue, monitor.condition, monitor.threshold)) {
+      if (this.checkCondition(currentValue, monitor.condition, monitor.value)) {
         await this.createNotification(monitor, currentValue);
       }
     } catch (error) {
@@ -36,32 +57,70 @@ export class MonitorScheduler {
     }
   }
 
-  private evaluateFormula(formula: string, data: any) {
-    // 这里需要根据实际的指标数据结构来实现公式计算
-    return parseFloat(data[formula] || '0');
+  private getIndicatorValue(type: Monitor['type'], data: any): number {
+    switch (type) {
+      case 'KDJ_J':
+        return data.j;
+      case 'PRICE':
+        return data.close;
+      case 'VOLUME':
+        return data.volume;
+      case 'CHANGE_PERCENT':
+        return data.changePercent;
+      default:
+        return 0;
+    }
   }
 
-  private checkCondition(value: number, condition: string, threshold: number): boolean {
+  private checkCondition(
+    value: number,
+    condition: Monitor['condition'],
+    threshold: number,
+  ): boolean {
     switch (condition) {
-      case 'greater':
+      case 'ABOVE':
         return value > threshold;
-      case 'less':
+      case 'BELOW':
         return value < threshold;
-      case 'equal':
-        return value === threshold;
       default:
         return false;
     }
   }
 
-  private async createNotification(monitor: any, value: number) {
+  private async createNotification(monitor: Monitor, value: number) {
+    const message = this.generateNotificationMessage(monitor, value);
+
     await prisma.notification.create({
       data: {
         monitorId: monitor.id,
-        message: `${monitor.stock.symbol} ${monitor.indicator.name} is ${value}`,
-        status: 'pending'
-      }
+        message,
+        status: 'PENDING',
+      },
     });
+  }
+
+  private generateNotificationMessage(monitor: Monitor, value: number): string {
+    const condition = monitor.condition === 'ABOVE' ? '高于' : '低于';
+    const type = this.getIndicatorTypeLabel(monitor.type);
+
+    return `${monitor.stock.name}(${
+      monitor.stock.symbol
+    }) 的${type}${condition}${monitor.value}，当前值为${value.toFixed(2)}`;
+  }
+
+  private getIndicatorTypeLabel(type: Monitor['type']): string {
+    switch (type) {
+      case 'PRICE':
+        return '价格';
+      case 'VOLUME':
+        return '成交量';
+      case 'CHANGE_PERCENT':
+        return '涨跌幅';
+      case 'KDJ_J':
+        return 'KDJ指标(J值)';
+      default:
+        return type;
+    }
   }
 
   async startMonitoring() {
@@ -71,17 +130,30 @@ export class MonitorScheduler {
         where: { isActive: true },
         include: {
           stock: true,
-          indicator: true
-        }
+        },
       });
 
-      for (const monitor of activeMonitors) {
+      // 映射数据库结果到 Monitor 类型
+      const monitors: Monitor[] = activeMonitors.map((dbMonitor) => ({
+        id: dbMonitor.id,
+        stockId: dbMonitor.stockId,
+        isActive: dbMonitor.isActive,
+        condition: dbMonitor.condition as Monitor['condition'],
+        type: dbMonitor.type as Monitor['type'],
+        value: dbMonitor.threshold,
+        stock: {
+          symbol: dbMonitor.stock.symbol,
+          name: dbMonitor.stock.name,
+        },
+      }));
+
+      for (const monitor of monitors) {
         await this.checkIndicator(monitor);
       }
     });
   }
 }
 
-export const createMonitorScheduler = (apiKey: string) => {
-  return new MonitorScheduler(apiKey);
+export const createMonitorScheduler = () => {
+  return new MonitorScheduler();
 };

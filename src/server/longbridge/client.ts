@@ -1,69 +1,32 @@
-import { AdjustType, Config, Period, QuoteContext } from 'longport';
-
-interface KLine {
-  close: number;
-  high: number;
-  low: number;
-  timestamp: number;
-}
-
-interface KDJResult {
-  k: number;
-  d: number;
-  j: number;
-  timestamp: number;
-}
+import { Config, QuoteContext, Period, AdjustType } from 'longport';
+import { KLine, KDJResult } from './types';
 
 export class LongBridgeClient {
-  private config: any;
-  private quoteContext: any = null;
+  private config: Config;
+  private quoteContext: QuoteContext | null = null;
 
   constructor() {
-    // 配置将在初始化时设置
-  }
-
-  private async initialize() {
-    if (!this.config) {
-      try {
-        const { Config } = await import('longport');
-        this.config = Config.fromEnv();
-      } catch (error) {
-        console.error('Failed to initialize LongBridge config:', error);
-        throw new Error('初始化LongBridge配置失败');
-      }
-    }
+    this.config = Config.fromEnv();
   }
 
   private async getQuoteContext() {
     if (!this.quoteContext) {
-      try {
-        await this.initialize();
-        const { QuoteContext } = await import('longport');
-        this.quoteContext = await QuoteContext.new(this.config);
-      } catch (error) {
-        console.error('Failed to create QuoteContext:', error);
-        throw new Error('创建行情上下文失败');
-      }
+      this.quoteContext = await QuoteContext.new(this.config);
     }
     return this.quoteContext;
   }
 
-  async getKLineData(
-    symbol: string,
-    period: string = '1d',
-    count: number = 100,
-  ): Promise<KLine[]> {
+  async getKLineData(symbol: string, count: number = 100): Promise<KLine[]> {
     try {
-      const longport = await import('longport');
       const ctx = await this.getQuoteContext();
       const response = await ctx.candlesticks(
         symbol,
-        'day',
+        Period.Day,
         count,
-        'no_adjust',
+        AdjustType.NoAdjust,
       );
 
-      return response.map((candle: any) => ({
+      return response.map((candle) => ({
         close: candle.close.toNumber(),
         high: candle.high.toNumber(),
         low: candle.low.toNumber(),
@@ -119,6 +82,12 @@ export class LongBridgeClient {
   }
 }
 
-export const createLongBridgeClient = () => {
-  return new LongBridgeClient();
-};
+// 单例模式
+let client: LongBridgeClient | null = null;
+
+export function getLongBridgeClient() {
+  if (!client) {
+    client = new LongBridgeClient();
+  }
+  return client;
+}

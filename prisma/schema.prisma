@@ -6,50 +6,39 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model Stock {
-  id        String   @id @default(cuid())
-  symbol    String   @unique
+  id        String    @id @default(cuid())
+  symbol    String    @unique
   name      String
   market    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
   monitors  Monitor[]
-}
-
-model Indicator {
-  id          String    @id @default(cuid())
-  name        String    @unique
-  description String?
-  formula     String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  monitors    Monitor[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 }
 
 model Monitor {
-  id          String    @id @default(cuid())
+  id          String   @id @default(cuid())
   stockId     String
-  indicatorId String
-  condition   String
-  threshold   Float
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  stock       Stock     @relation(fields: [stockId], references: [id])
-  indicator   Indicator @relation(fields: [indicatorId], references: [id])
+  stock       Stock    @relation(fields: [stockId], references: [id])
+  type        String   // PRICE, VOLUME, CHANGE_PERCENT, KDJ_J
+  condition   String   // ABOVE, BELOW
+  threshold   Float    // 阈值
+  isActive    Boolean  @default(true)
   notifications Notification[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Notification {
   id        String   @id @default(cuid())
   monitorId String
+  monitor   Monitor  @relation(fields: [monitorId], references: [id])
   message   String
-  status    String
+  status    String   // PENDING, SENT, FAILED
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  monitor   Monitor  @relation(fields: [monitorId], references: [id])
 }

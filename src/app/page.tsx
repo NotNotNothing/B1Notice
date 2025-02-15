@@ -23,6 +23,7 @@ import {
 } from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { StockData } from '../types/stock';
+import { KDJCalculator } from '../components/KDJCalculator';
 
 // 模拟数据（添加 KDJ 数据）
 const mockStocks: StockData[] = [
@@ -89,7 +90,7 @@ export default function Home() {
   return (
     <main className='min-h-screen p-4 sm:p-8'>
       <div className='max-w-7xl mx-auto'>
-        <Title className='text-3xl font-bold text-white mb-8'>
+        <Title className='text-3xl font-bold mb-8'>
           股市指标监控
         </Title>
 
@@ -97,6 +98,7 @@ export default function Home() {
           <TabList className='flex space-x-2 mb-8 border-none'>
             <Tab className='glassmorphism-tab'>股票列表</Tab>
             <Tab className='glassmorphism-tab'>预警设置</Tab>
+            <Tab className='glassmorphism-tab'>KDJ计算器</Tab>
           </TabList>
 
           <TabPanels>
@@ -125,7 +127,7 @@ export default function Home() {
                             onClose={() => setSelectedStock(null)}
                           />
                           <div className='mt-8'>
-                            <Text className='text-xl font-semibold text-white mb-4'>
+                            <Text className='text-xl font-semibold mb-4'>
                               当前预警
                             </Text>
                             <AlertList symbol={selectedStock} />
@@ -144,7 +146,7 @@ export default function Home() {
                   <div key={stock.symbol} className='glassmorphism-card p-6'>
                     <div className='flex items-center justify-between mb-6'>
                       <div>
-                        <Text className='text-2xl font-semibold text-white'>
+                        <Text className='text-2xl font-semibold'>
                           {stock.name}
                         </Text>
                         <Text className='text-gray-400'>{stock.symbol}</Text>
@@ -195,6 +197,12 @@ export default function Home() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </TabPanel>
+
+            <TabPanel>
+              <div className='glassmorphism-card p-6'>
+                <KDJCalculator />
               </div>
             </TabPanel>
           </TabPanels>

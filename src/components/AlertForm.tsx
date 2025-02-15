@@ -48,20 +48,20 @@ export const AlertForm = ({ symbol, onClose }: AlertFormProps) => {
 
   return (
     <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-xl p-6">
-      <h2 className="text-xl font-semibold text-white mb-6">设置预警 - {symbol}</h2>
+      <h2 className="text-xl font-semibold mb-6">设置预警 - {symbol}</h2>
 
       <div className="space-y-6">
         <div className="space-y-2">
           <label className="text-sm text-gray-400">预警类型</label>
           <Listbox value={type} onChange={setType}>
             <div className="relative">
-              <Listbox.Button className="relative w-full cursor-pointer rounded-lg bg-white/5 py-2 pl-3 pr-10 text-left text-white border border-white/10">
+              <Listbox.Button className="relative w-full cursor-pointer rounded-lg bg-white/5 py-2 pl-3 pr-10 text-left border border-white/10">
                 <span className="block truncate">{selectedTypeLabel}</span>
                 <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
                   <ChevronUpDownIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
                 </span>
               </Listbox.Button>
-              <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg bg-gray-900/90 backdrop-blur-lg py-1 text-white shadow-lg border border-white/10">
+              <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg bg-gray-900/90 backdrop-blur-lg py-1 shadow-lg border border-white/10">
                 {alertTypes.map((type) => (
                   <Listbox.Option
                     key={type.value}
@@ -96,13 +96,13 @@ export const AlertForm = ({ symbol, onClose }: AlertFormProps) => {
           <label className="text-sm text-gray-400">条件</label>
           <Listbox value={condition} onChange={setCondition}>
             <div className="relative">
-              <Listbox.Button className="relative w-full cursor-pointer rounded-lg bg-white/5 py-2 pl-3 pr-10 text-left text-white border border-white/10">
+              <Listbox.Button className="relative w-full cursor-pointer rounded-lg bg-white/5 py-2 pl-3 pr-10 text-left border border-white/10">
                 <span className="block truncate">{selectedConditionLabel}</span>
                 <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
                   <ChevronUpDownIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
                 </span>
               </Listbox.Button>
-              <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg bg-gray-900/90 backdrop-blur-lg py-1 text-white shadow-lg border border-white/10">
+              <Listbox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg bg-gray-900/90 backdrop-blur-lg py-1 shadow-lg border border-white/10">
                 {conditions.map((cond) => (
                   <Listbox.Option
                     key={cond.value}
@@ -142,7 +142,7 @@ export const AlertForm = ({ symbol, onClose }: AlertFormProps) => {
             min={type === 'KDJ_J' ? -100 : 0}
             max={type === 'KDJ_J' ? 100 : undefined}
             step={type === 'CHANGE_PERCENT' || type === 'KDJ_J' ? 0.01 : 1}
-            className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white"
+            className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2"
           />
           {type === 'KDJ_J' && (
             <p className="text-xs text-gray-500">
