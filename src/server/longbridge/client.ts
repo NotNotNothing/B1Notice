@@ -1,4 +1,9 @@
-import { Config, QuoteContext, SecurityQuote } from 'longport';
+import {
+  Config,
+  QuoteContext,
+  SecurityQuote,
+  SecurityStaticInfo,
+} from 'longport';
 import { KLine, KDJResult } from './types';
 import { StockData } from '../../types/stock';
 import redis from '../../lib/redis';
@@ -8,6 +13,7 @@ const CACHE_PREFIX = {
   QUOTES: 'stock:quotes:',
   KLINE: 'stock:kline:',
   KDJ: 'stock:kdj:',
+  STATIC_INFO: 'stock:static:',
 };
 
 export class LongBridgeClient {
@@ -25,23 +31,62 @@ export class LongBridgeClient {
     return this.quoteContext;
   }
 
+  private async fetchStockStaticInfo(symbol: string) {
+    const ctx = await this.getQuoteContext();
+    const staticInfo = await ctx.staticInfo([symbol]);
+    if (staticInfo && staticInfo.length > 0) {
+      const info = staticInfo[0];
+      // 缓存静态信息
+      redis.setex(
+        CACHE_PREFIX.STATIC_INFO + symbol,
+        CACHE_EXPIRY,
+        JSON.stringify(info),
+      );
+      return info;
+    }
+    return null;
+  }
+
+  private async getStockStaticInfo(symbol: string) {
+    try {
+      // 尝试从缓存获取数据
+      const cached = await redis.get(CACHE_PREFIX.STATIC_INFO + symbol);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+      // 如果没有缓存数据，从 API 获取
+      return await this.fetchStockStaticInfo(symbol);
+    } catch (error) {
+      console.error('Error fetching stock static info:', error);
+      return await this.fetchStockStaticInfo(symbol);
+    }
+  }
+
   private async fetchStockQuotes(symbols: string[]): Promise<StockData[]> {
     const ctx = await this.getQuoteContext();
     const quotes = await ctx.quote(symbols);
     const kdjPromises = symbols.map((symbol) => this.calculateKDJ(symbol));
-    const kdjResults = await Promise.all(kdjPromises);
+    const staticInfoPromises = symbols.map((symbol) =>
+      this.getStockStaticInfo(symbol),
+    );
+
+    const [kdjResults, staticInfoResults] = await Promise.all([
+      Promise.all(kdjPromises),
+      Promise.all(staticInfoPromises),
+    ]);
 
     return quotes.map((quote: SecurityQuote, index) => {
       const lastDone = Number(quote.lastDone);
       const prevClose = Number(quote.prevClose);
       const change = lastDone - prevClose;
       const changePercent = (change / prevClose) * 100;
+      const staticInfo = staticInfoResults[index];
 
       const stockData: StockData = {
         symbol: symbols[index],
         name: quote.symbol,
+        nameCn: staticInfo?.nameCn || '',
         price: lastDone,
-        change,
         changePercent,
         volume: Number(quote.volume),
         marketCap: Number(quote.postMarketQuote),

@@ -11,7 +11,7 @@ export const AlertPanel = ({ stocks }: AlertPanelProps) => {
       {stocks.map((stock) => (
         <div key={stock.symbol} className='p-4 border rounded-lg'>
           <div className='mb-4'>
-            <h3 className='text-lg font-semibold'>{stock.name}</h3>
+            <h3 className='text-lg font-semibold'>{stock.nameCn}</h3>
             <p className='text-sm text-gray-500'>{stock.symbol}</p>
           </div>
           <AlertList symbol={stock.symbol} />

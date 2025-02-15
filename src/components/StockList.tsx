@@ -22,10 +22,7 @@ export const StockList = ({ stocks }: StockListProps) => {
         <Dialog key={stock.symbol}>
           <DialogTrigger asChild>
             <div>
-              <StockCard
-                data={stock}
-                onClick={() => setSelectedStock(stock)}
-              />
+              <StockCard data={stock} onClick={() => setSelectedStock(stock)} />
             </div>
           </DialogTrigger>
           <DialogContent>

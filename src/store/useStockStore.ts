@@ -12,15 +12,22 @@ type StockStore = {
   toggleAlert: (id: string) => void;
 };
 
+// 曼城阵容
 const symbols = [
-  'BABA.US',
-  'JD.US',
-  'NVDA.US',
-  'AAPL.US',
-  'MSFT.US',
-  '01810.HK',
-  '00700.HK',
-  '02331.HK',
+  '002594.SZ', // 比亚迪
+  '600570.SH', // 恒生电子
+  '600519.SH', // 贵州茅台
+  '000776.SZ', // 广发证券
+  '601127.SH', // 赛力斯
+  '600030.SH', // 中信
+  '00700.HK', // 腾讯控股
+  '01810.HK', // 小米集团
+  '02331.HK', // 李宁
+  'BABA.US', // 阿里巴巴
+  'NVDA.US', // 英伟达
+  'AAPL.US', // 苹果
+  'MSFT.US', // 微软
+  'JD.US', // 京东
 ];
 
 export const useStockStore = create<StockStore>((set) => ({
