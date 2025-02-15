@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "3100:3000"
+      - "3100:3100"
     restart: unless-stopped
     environment:
       - LONGPORT_APP_KEY=${LONGPORT_APP_KEY}

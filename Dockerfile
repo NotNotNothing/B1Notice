@@ -34,10 +34,10 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 
 # 暴露端口
-EXPOSE 3000
+EXPOSE 3100
 
 # 设置环境变量
-ENV PORT 3000
+ENV PORT 3100
 ENV HOSTNAME "0.0.0.0"
 ENV DATABASE_URL ${DATABASE_URL}
 ENV LONGPORT_APP_KEY ${LONGPORT_APP_KEY}
