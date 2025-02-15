@@ -1,0 +1,30 @@
+# 依赖目录
+node_modules
+.pnp
+.pnp.js
+
+# 测试文件
+coverage
+*.test.*
+__tests__
+jest.config.*
+
+# 开发工具配置
+.git
+.gitignore
+.env*
+.vscode
+.idea
+*.log
+
+# Next.js
+.next
+out
+
+# 其他
+README.md
+*.md
+.DS_Store
+Dockerfile
+.dockerignore
+docker-compose.yml
