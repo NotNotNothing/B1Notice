@@ -24,14 +24,6 @@ interface Monitor {
   };
 }
 
-interface Notification {
-  id: string;
-  monitorId: string;
-  message: string;
-  createdAt: Date;
-  status: 'PENDING' | 'SENT' | 'FAILED';
-}
-
 export class MonitorScheduler {
   private readonly longBridgeClient: LongBridgeClient;
 
@@ -57,6 +49,7 @@ export class MonitorScheduler {
     }
   }
 
+  // @ts-ignore
   private getIndicatorValue(type: Monitor['type'], data: any): number {
     switch (type) {
       case 'KDJ_J':
