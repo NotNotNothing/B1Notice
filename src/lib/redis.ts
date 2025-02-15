@@ -1,13 +1,12 @@
 import { Redis } from 'ioredis';
 
-const redisUrl = process.env.REDIS_URL;
-
 class RedisClient {
   private client: Redis | null = null;
   private isConnected: boolean = false;
 
   constructor() {
     try {
+      const redisUrl = process.env.REDIS_URL;
       // 优先使用 Redis URL
       if (redisUrl) {
         this.client = new Redis(redisUrl, {
