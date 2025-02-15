@@ -37,7 +37,7 @@ export const StockCard = ({ data, onClick }: StockCardProps) => {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <p className="text-sm text-gray-500">当前价格</p>
-          <p className="text-2xl font-semibold">¥{data.price.toFixed(2)}</p>
+          <p className="text-2xl font-semibold">{data.price.toFixed(2)}</p>
         </div>
         <div>
           <p className="text-sm text-gray-500">成交量</p>
