@@ -1,0 +1,55 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Stock {
+  id        String   @id @default(cuid())
+  symbol    String   @unique
+  name      String
+  market    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  monitors  Monitor[]
+}
+
+model Indicator {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  formula     String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  monitors    Monitor[]
+}
+
+model Monitor {
+  id          String    @id @default(cuid())
+  stockId     String
+  indicatorId String
+  condition   String
+  threshold   Float
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  stock       Stock     @relation(fields: [stockId], references: [id])
+  indicator   Indicator @relation(fields: [indicatorId], references: [id])
+  notifications Notification[]
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  monitorId String
+  message   String
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  monitor   Monitor  @relation(fields: [monitorId], references: [id])
+}
