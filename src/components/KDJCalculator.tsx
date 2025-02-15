@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { Card, Text, TextInput, Button } from '@tremor/react';
-import { DatePicker } from './DatePicker';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { DatePicker } from '@/components/DatePicker';
 
 interface KDJResult {
   k: number;
@@ -10,7 +12,7 @@ interface KDJResult {
 }
 
 export const KDJCalculator = () => {
-  const [symbol, setSymbol] = useState<string>('');
+  const [symbol, setSymbol] = useState<string>('01810.HK');
   const [date, setDate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<KDJResult | null>(null);
@@ -41,59 +43,54 @@ export const KDJCalculator = () => {
       setResult(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : '计算KDJ时发生错误');
+      setResult(null);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className='space-y-6'>
-      <Text className='text-2xl font-semibold  mb-4'>KDJ指标计算器</Text>
-
-      <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-        <TextInput
-          placeholder='请输入股票代码（如：600000）'
+    <Card className='p-6 space-y-4'>
+      <div className='space-y-2'>
+        <p className='text-sm text-gray-500'>股票代码</p>
+        <Input
           value={symbol}
           onChange={(e) => setSymbol(e.target.value)}
+          placeholder='输入股票代码'
+          className='w-full'
         />
+      </div>
+
+      <div className='space-y-2'>
+        <p className='text-sm text-gray-500'>日期</p>
         <DatePicker value={date} onChange={setDate} maxDate={new Date()} />
       </div>
 
-      <Button
-        className='w-full'
-        onClick={calculateKDJ}
-        loading={loading}
-        disabled={loading || !symbol}
-      >
-        计算KDJ
+      {error && <p className='text-sm text-red-500'>{error}</p>}
+
+      <Button onClick={calculateKDJ} disabled={loading} className='w-full'>
+        {loading ? '计算中...' : '计算KDJ'}
       </Button>
 
-      {error && <Text className='text-red-500'>{error}</Text>}
-
       {result && (
-        <Card className='glassmorphism mt-4'>
+        <div className='space-y-2'>
+          <p className='text-sm text-gray-500'>计算结果</p>
           <div className='grid grid-cols-3 gap-4'>
             <div>
-              <Text className='text-gray-400'>K值</Text>
-              <Text className='text-2xl font-semibold'>
-                {result.k.toFixed(2)}
-              </Text>
+              <p className='text-sm text-gray-500'>K值</p>
+              <p className='text-2xl font-semibold'>{result.k.toFixed(2)}</p>
             </div>
             <div>
-              <Text className='text-gray-400'>D值</Text>
-              <Text className='text-2xl font-semibold'>
-                {result.d.toFixed(2)}
-              </Text>
+              <p className='text-sm text-gray-500'>D值</p>
+              <p className='text-2xl font-semibold'>{result.d.toFixed(2)}</p>
             </div>
             <div>
-              <Text className='text-gray-400'>J值</Text>
-              <Text className='text-2xl font-semibold'>
-                {result.j.toFixed(2)}
-              </Text>
+              <p className='text-sm text-gray-500'>J值</p>
+              <p className='text-2xl font-semibold'>{result.j.toFixed(2)}</p>
             </div>
           </div>
-        </Card>
+        </div>
       )}
-    </div>
+    </Card>
   );
 };

@@ -1,5 +1,6 @@
-import { Config, QuoteContext, Period, AdjustType } from 'longport';
+import { Config, QuoteContext, Period, AdjustType, SecurityQuote } from 'longport';
 import { KLine, KDJResult } from './types';
+import { StockData } from '../../types/stock';
 
 export class LongBridgeClient {
   private config: Config;
@@ -16,14 +17,49 @@ export class LongBridgeClient {
     return this.quoteContext;
   }
 
+  async getStockQuotes(symbols: string[]): Promise<StockData[]> {
+    try {
+      const ctx = await this.getQuoteContext();
+      const quotes = await ctx.quote(symbols);
+      const kdjPromises = symbols.map(symbol => this.calculateKDJ(symbol));
+      const kdjResults = await Promise.all(kdjPromises);
+
+      return quotes.map((quote: SecurityQuote, index) => {
+        const lastDone = Number(quote.lastDone);
+        const prevClose = Number(quote.prevClose);
+        const change = lastDone - prevClose;
+        const changePercent = (change / prevClose) * 100;
+
+        return {
+          symbol: symbols[index],
+          name: quote.symbol,
+          price: lastDone,
+          change,
+          changePercent,
+          volume: Number(quote.volume),
+          marketCap: Number(quote.marketValue),
+          lastUpdate: new Date().toISOString(),
+          kdj: {
+            k: kdjResults[index][kdjResults[index].length - 1].k,
+            d: kdjResults[index][kdjResults[index].length - 1].d,
+            j: kdjResults[index][kdjResults[index].length - 1].j,
+          },
+        };
+      });
+    } catch (error) {
+      console.error('Error fetching stock quotes:', error);
+      throw error;
+    }
+  }
+
   async getKLineData(symbol: string, count: number = 100): Promise<KLine[]> {
     try {
       const ctx = await this.getQuoteContext();
       const response = await ctx.candlesticks(
         symbol,
-        Period.Day,
+        14, //Period.Day,
         count,
-        AdjustType.NoAdjust,
+        0, //AdjustType.NoAdjust,
       );
 
       return response.map((candle) => ({

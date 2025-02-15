@@ -12,45 +12,6 @@
   --text-tertiary: #718096;
 }
 
-@layer base {
-  body {
-    @apply min-h-screen bg-gradient-to-br from-[var(--background-start)] to-[var(--background-end)];
-    color-scheme: dark;
-    color: var(--text-primary);
-  }
-}
-
-@layer components {
-  .glassmorphism {
-    @apply backdrop-blur-lg bg-[var(--card-bg)] border border-[var(--card-border)] shadow-xl;
-  }
-
-  .glassmorphism-card {
-    @apply glassmorphism rounded-xl transition-all duration-300 hover:shadow-2xl hover:scale-[1.02] hover:bg-[rgba(255,255,255,0.12)];
-  }
-
-  .glassmorphism-dialog {
-    @apply glassmorphism rounded-2xl p-6 shadow-2xl;
-  }
-
-  .glassmorphism-tab {
-    @apply glassmorphism rounded-lg px-4 py-2 transition-all duration-200;
-  }
-
-  .glassmorphism-tab[data-state='active'] {
-    @apply bg-[rgba(255,255,255,0.15)];
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+div[data-radix-popper-content-wrapper] {
+  background: #fff;
 }
