@@ -24,6 +24,13 @@ interface Monitor {
   };
 }
 
+interface IndicatorData {
+  j?: number; // for KDJ_J
+  close?: number; // for PRICE
+  volume?: number; // for VOLUME
+  changePercent?: number; // for CHANGE_PERCENT
+}
+
 export class MonitorScheduler {
   private readonly longBridgeClient: LongBridgeClient;
 
@@ -49,17 +56,19 @@ export class MonitorScheduler {
     }
   }
 
-  // @ts-ignore
-  private getIndicatorValue(type: Monitor['type'], data: any): number {
+  private getIndicatorValue(
+    type: Monitor['type'],
+    data: IndicatorData,
+  ): number {
     switch (type) {
       case 'KDJ_J':
-        return data.j;
+        return data.j ?? 0;
       case 'PRICE':
-        return data.close;
+        return data.close ?? 0;
       case 'VOLUME':
-        return data.volume;
+        return data.volume ?? 0;
       case 'CHANGE_PERCENT':
-        return data.changePercent;
+        return data.changePercent ?? 0;
       default:
         return 0;
     }
