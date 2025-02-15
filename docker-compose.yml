@@ -7,11 +7,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - "3000:3000"
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - LONGBRIDGE_APP_KEY=${LONGBRIDGE_APP_KEY}
-      - LONGBRIDGE_APP_SECRET=${LONGBRIDGE_APP_SECRET}
-      - LONGBRIDGE_ACCESS_TOKEN=${LONGBRIDGE_ACCESS_TOKEN}
     restart: unless-stopped
     networks:
       - app-network
