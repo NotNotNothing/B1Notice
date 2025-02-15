@@ -1,4 +1,4 @@
-import { LongBridgeClient } from '../../src/lib/longbridge';
+import { LongBridgeClient } from '../../src/server/longbridge/client';
 import { Config, QuoteContext } from 'longport';
 
 jest.mock('longport', () => ({

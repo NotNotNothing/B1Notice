@@ -7,9 +7,9 @@
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
 import { prisma } from './prisma';
-import { createLongBridgeClient } from './longbridge';
+import { getLongBridgeClient } from '../server/longbridge/client';
 import schedule from 'node-schedule';
-import { LongBridgeClient } from './longbridge';
+import { LongBridgeClient } from '../server/longbridge/client';
 
 interface Monitor {
   id: string;
@@ -36,7 +36,7 @@ export class MonitorScheduler {
   private readonly longBridgeClient: LongBridgeClient;
 
   constructor() {
-    this.longBridgeClient = createLongBridgeClient();
+    this.longBridgeClient = getLongBridgeClient();
   }
 
   async checkIndicator(monitor: Monitor) {

@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { getLongBridgeClient } from '@/server/longbridge/client';
-import { body } from 'framer-motion/client';
 
 export async function POST(request: Request) {
   try {

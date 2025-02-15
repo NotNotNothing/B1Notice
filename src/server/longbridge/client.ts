@@ -1,4 +1,4 @@
-import { Config, QuoteContext, Period, AdjustType, SecurityQuote } from 'longport';
+import { Config, QuoteContext, SecurityQuote } from 'longport';
 import { KLine, KDJResult } from './types';
 import { StockData } from '../../types/stock';
 
@@ -21,7 +21,7 @@ export class LongBridgeClient {
     try {
       const ctx = await this.getQuoteContext();
       const quotes = await ctx.quote(symbols);
-      const kdjPromises = symbols.map(symbol => this.calculateKDJ(symbol));
+      const kdjPromises = symbols.map((symbol) => this.calculateKDJ(symbol));
       const kdjResults = await Promise.all(kdjPromises);
 
       return quotes.map((quote: SecurityQuote, index) => {

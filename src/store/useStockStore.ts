@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { StockState, AlertConfig, StockData } from '../types/stock';
+import { AlertConfig, StockData } from '../types/stock';
 
 type StockStore = {
   stocks: StockData[];
