@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 /** @type {import('next').NextConfig} */
 const nextConfig: NextConfig = {
+  output: 'standalone',
   webpack: (config, { isServer }) => {
     // 在服务端构建时，忽略 longport 原生模块
     if (isServer) {
