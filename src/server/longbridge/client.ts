@@ -1,9 +1,4 @@
-import {
-  Config,
-  QuoteContext,
-  SecurityQuote,
-  SecurityStaticInfo,
-} from 'longport';
+import { Config, QuoteContext, SecurityQuote } from 'longport';
 import { KLine, KDJResult } from './types';
 import { StockData } from '../../types/stock';
 import redis from '../../lib/redis';

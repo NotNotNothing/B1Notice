@@ -1,10 +1,7 @@
 import { StockData } from '../types/stock';
 import { ArrowUpIcon, ArrowDownIcon } from 'lucide-react';
-import { formatDistance } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
 import { cn } from '../lib/utils';
 import { Card } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 
 interface StockCardProps {
   data: StockData;
