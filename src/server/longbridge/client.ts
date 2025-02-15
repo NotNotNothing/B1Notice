@@ -1,6 +1,14 @@
 import { Config, QuoteContext, SecurityQuote } from 'longport';
 import { KLine, KDJResult } from './types';
 import { StockData } from '../../types/stock';
+import redis from '../../lib/redis';
+
+const CACHE_EXPIRY = 60 * 60 * 24 * 7; // 缓存过期时间（秒）
+const CACHE_PREFIX = {
+  QUOTES: 'stock:quotes:',
+  KLINE: 'stock:kline:',
+  KDJ: 'stock:kdj:',
+};
 
 export class LongBridgeClient {
   private config: Config;
@@ -17,60 +25,120 @@ export class LongBridgeClient {
     return this.quoteContext;
   }
 
+  private async fetchStockQuotes(symbols: string[]): Promise<StockData[]> {
+    const ctx = await this.getQuoteContext();
+    const quotes = await ctx.quote(symbols);
+    const kdjPromises = symbols.map((symbol) => this.calculateKDJ(symbol));
+    const kdjResults = await Promise.all(kdjPromises);
+
+    return quotes.map((quote: SecurityQuote, index) => {
+      const lastDone = Number(quote.lastDone);
+      const prevClose = Number(quote.prevClose);
+      const change = lastDone - prevClose;
+      const changePercent = (change / prevClose) * 100;
+
+      const stockData: StockData = {
+        symbol: symbols[index],
+        name: quote.symbol,
+        price: lastDone,
+        change,
+        changePercent,
+        volume: Number(quote.volume),
+        marketCap: Number(quote.postMarketQuote),
+        lastUpdate: new Date().toISOString(),
+        kdj: {
+          k: kdjResults[index][kdjResults[index].length - 1].k,
+          d: kdjResults[index][kdjResults[index].length - 1].d,
+          j: kdjResults[index][kdjResults[index].length - 1].j,
+        },
+      };
+
+      // 尝试缓存数据
+      redis.setex(
+        CACHE_PREFIX.QUOTES + stockData.symbol,
+        CACHE_EXPIRY,
+        JSON.stringify(stockData),
+      );
+
+      return stockData;
+    });
+  }
+
   async getStockQuotes(symbols: string[]): Promise<StockData[]> {
     try {
-      const ctx = await this.getQuoteContext();
-      const quotes = await ctx.quote(symbols);
-      const kdjPromises = symbols.map((symbol) => this.calculateKDJ(symbol));
-      const kdjResults = await Promise.all(kdjPromises);
+      // 尝试从缓存获取数据
+      const cachedData = await Promise.all(
+        symbols.map(async (symbol) => {
+          const cached = await redis.get(CACHE_PREFIX.QUOTES + symbol);
+          return cached ? JSON.parse(cached) : null;
+        }),
+      );
 
-      return quotes.map((quote: SecurityQuote, index) => {
-        const lastDone = Number(quote.lastDone);
-        const prevClose = Number(quote.prevClose);
-        const change = lastDone - prevClose;
-        const changePercent = (change / prevClose) * 100;
+      // 如果所有数据都在缓存中，直接返回
+      if (cachedData.every((data) => data !== null)) {
+        return cachedData as StockData[];
+      }
 
-        return {
-          symbol: symbols[index],
-          name: quote.symbol,
-          price: lastDone,
-          change,
-          changePercent,
-          volume: Number(quote.volume),
-          marketCap: Number(quote.postMarketQuote),
-          lastUpdate: new Date().toISOString(),
-          kdj: {
-            k: kdjResults[index][kdjResults[index].length - 1].k,
-            d: kdjResults[index][kdjResults[index].length - 1].d,
-            j: kdjResults[index][kdjResults[index].length - 1].j,
-          },
-        };
-      });
+      // 如果有部分数据在缓存中
+      if (cachedData.some((data) => data !== null)) {
+        const uncachedSymbols = symbols.filter(
+          (symbol, index) => !cachedData[index],
+        );
+        const freshData = await this.fetchStockQuotes(uncachedSymbols);
+
+        // 合并缓存数据和新数据
+        return symbols.map((symbol, index) => {
+          const cached = cachedData[index];
+          if (cached) return cached;
+          return freshData.find((data) => data.symbol === symbol)!;
+        });
+      }
+
+      // 如果没有缓存数据，直接获取所有数据
+      return await this.fetchStockQuotes(symbols);
     } catch (error) {
       console.error('Error fetching stock quotes:', error);
-      throw error;
+      // 如果发生错误，尝试直接从 API 获取数据
+      return await this.fetchStockQuotes(symbols);
     }
+  }
+
+  private async fetchKLineData(
+    symbol: string,
+    count: number = 100,
+  ): Promise<KLine[]> {
+    const ctx = await this.getQuoteContext();
+    const response = await ctx.candlesticks(symbol, 14, count, 0);
+
+    const kLineData = response.map((candle) => ({
+      close: candle.close.toNumber(),
+      high: candle.high.toNumber(),
+      low: candle.low.toNumber(),
+      timestamp: candle.timestamp.getTime(),
+    }));
+
+    // 尝试缓存数据
+    const cacheKey = `${CACHE_PREFIX.KLINE}${symbol}:${count}`;
+    redis.setex(cacheKey, CACHE_EXPIRY, JSON.stringify(kLineData));
+
+    return kLineData;
   }
 
   async getKLineData(symbol: string, count: number = 100): Promise<KLine[]> {
     try {
-      const ctx = await this.getQuoteContext();
-      const response = await ctx.candlesticks(
-        symbol,
-        14, //Period.Day,
-        count,
-        0, //AdjustType.NoAdjust,
-      );
+      // 尝试从缓存获取数据
+      const cacheKey = `${CACHE_PREFIX.KLINE}${symbol}:${count}`;
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
 
-      return response.map((candle) => ({
-        close: candle.close.toNumber(),
-        high: candle.high.toNumber(),
-        low: candle.low.toNumber(),
-        timestamp: candle.timestamp.getTime(),
-      }));
+      // 如果没有缓存数据，从 API 获取
+      return await this.fetchKLineData(symbol, count);
     } catch (error) {
       console.error('Error fetching K-line data:', error);
-      throw error;
+      // 如果发生错误，直接从 API 获取数据
+      return await this.fetchKLineData(symbol, count);
     }
   }
 
