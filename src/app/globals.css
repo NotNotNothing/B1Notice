@@ -10,6 +10,7 @@
   --text-primary: #111;
   --text-secondary: #a0aec0;
   --text-tertiary: #718096;
+  --background: #fff;
 }
 
 div[data-radix-popper-content-wrapper] {

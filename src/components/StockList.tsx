@@ -5,9 +5,9 @@ import { StockData } from '../types/stock';
 import {
   Dialog,
   DialogContent,
-  DialogTrigger,
   DialogTitle,
-} from '@radix-ui/react-dialog';
+  DialogTrigger,
+} from '@/components/ui/dialog';
 
 interface StockListProps {
   stocks: StockData[];
@@ -26,11 +26,13 @@ export const StockList = ({ stocks }: StockListProps) => {
             </div>
           </DialogTrigger>
           <DialogContent>
-            <DialogTitle>设置预警</DialogTitle>
-            <AlertForm
-              symbol={selectedStock?.symbol || ''}
-              onClose={() => setSelectedStock(null)}
-            />
+            <DialogTitle>设置买点提醒</DialogTitle>
+            {selectedStock && (
+              <AlertForm
+                stock={selectedStock}
+                onClose={() => setSelectedStock(null)}
+              />
+            )}
           </DialogContent>
         </Dialog>
       ))}

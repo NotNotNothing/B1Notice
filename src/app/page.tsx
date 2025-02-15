@@ -27,7 +27,7 @@ export default function Home() {
       <Tabs defaultValue='stocks'>
         <TabsList>
           <TabsTrigger value='stocks'>股票列表</TabsTrigger>
-          <TabsTrigger value='alerts'>预警设置</TabsTrigger>
+          <TabsTrigger value='alerts'>买点提醒</TabsTrigger>
           <TabsTrigger value='kdj'>KDJ计算</TabsTrigger>
         </TabsList>
 
