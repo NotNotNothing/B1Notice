@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { AlertConfig, AlertType, type StockData } from '../types/stock';
 import { useStockStore } from '../store/useStockStore';
-import { cn } from '../lib/utils';
 import {
   Card,
   CardContent,
@@ -11,8 +10,14 @@ import {
 } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Select, Option } from '@/components/ui/select';
 
 const alertTypes = [
   { value: 'PRICE', label: '价格' },
@@ -60,16 +65,19 @@ export const AlertForm = ({ stock, onClose }: AlertFormProps) => {
       </CardHeader>
       <CardContent className='space-y-6'>
         <div className='space-y-2'>
-          <label className='text-sm text-muted-foreground'>预警类型</label>
+          <label className='text-sm text-muted-foreground'>监控类型</label>
           <Select
             value={type}
-            onChange={(e) => setType(e.target.value as AlertType)}
+            onValueChange={(type) => setType(type as AlertType)}
           >
-            {alertTypes.map((type) => (
-              <Option key={type.value} value={type.value}>
-                {type.label}
-              </Option>
-            ))}
+            <SelectTrigger>
+              <SelectValue placeholder='请选择监控类型' />
+            </SelectTrigger>
+            <SelectContent>
+              {alertTypes.map((type) => (
+                <SelectItem value={type.value}> {type.label}</SelectItem>
+              ))}
+            </SelectContent>
           </Select>
         </div>
 
@@ -77,15 +85,18 @@ export const AlertForm = ({ stock, onClose }: AlertFormProps) => {
           <label className='text-sm text-muted-foreground'>条件</label>
           <Select
             value={condition}
-            onChange={(e) =>
-              setCondition(e.target.value as AlertConfig['condition'])
+            onValueChange={(condition) =>
+              setCondition(condition as AlertConfig['condition'])
             }
           >
-            {conditions.map((cond) => (
-              <Option key={cond.value} value={cond.value}>
-                {cond.label}
-              </Option>
-            ))}
+            <SelectTrigger>
+              <SelectValue placeholder='请选择监控类型' />
+            </SelectTrigger>
+            <SelectContent>
+              {conditions.map((cond) => (
+                <SelectItem value={cond.value}> {cond.label}</SelectItem>
+              ))}
+            </SelectContent>
           </Select>
         </div>
 
@@ -116,11 +127,7 @@ export const AlertForm = ({ stock, onClose }: AlertFormProps) => {
         <Button variant='ghost' onClick={onClose}>
           取消
         </Button>
-        <Button
-          variant='default'
-          onClick={handleSubmit}
-          className='bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/20'
-        >
+        <Button variant='default' onClick={handleSubmit}>
           确定
         </Button>
       </CardFooter>
