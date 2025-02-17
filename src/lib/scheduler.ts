@@ -138,15 +138,52 @@ export class MonitorScheduler {
   }
 
   private async createNotification(monitor: Monitor, value: number) {
-    const message = this.generateNotificationMessage(monitor, value);
+    try {
+      // 检查最后通知时间
+      const monitorData = await prisma.monitor.findUnique({
+        where: { id: monitor.id },
+        select: { lastNotifiedAt: true },
+      });
 
-    await prisma.notification.create({
-      data: {
-        monitorId: monitor.id,
-        message,
-        status: 'PENDING',
-      },
-    });
+      const now = new Date();
+      if (monitorData?.lastNotifiedAt) {
+        const lastNotified = new Date(monitorData.lastNotifiedAt);
+        const hoursSinceLastNotification =
+          (now.getTime() - lastNotified.getTime()) / (1000 * 60 * 60);
+
+        // 如果距离上次通知不足1小时，则跳过
+        if (hoursSinceLastNotification < 1) {
+          console.log(
+            `跳过通知: ${monitor.stock.symbol} 距离上次通知未满1小时`,
+          );
+          return;
+        }
+      }
+
+      const message = this.generateNotificationMessage(monitor, value);
+
+      await prisma.notification.create({
+        data: {
+          monitorId: monitor.id,
+          message,
+          status: 'PENDING',
+        },
+      });
+
+      await sendCanBuyMessageByPushDeer(
+        monitor.stock.symbol,
+        monitor.stock.name,
+        value,
+      );
+
+      // 更新最后通知时间
+      await prisma.monitor.update({
+        where: { id: monitor.id },
+        data: { lastNotifiedAt: now },
+      });
+    } catch (error) {
+      console.error('创建通知失败:', error);
+    }
   }
 
   private generateNotificationMessage(monitor: Monitor, value: number): string {
@@ -175,24 +212,32 @@ export class MonitorScheduler {
 
   private async calculateDailyKDJ(scope: string[] = []) {
     try {
-      // 获取所有股票
-      const stocks = await prisma.stock.findMany({
+      // 获取所有激活的 KDJ_J 类型的监控配置
+      const activeMonitors = await prisma.monitor.findMany({
         where: {
-          market: {
-            in: scope,
+          isActive: true,
+          type: 'KDJ_J',
+          stock: {
+            market: {
+              in: scope,
+            },
           },
         },
+        include: {
+          stock: true,
+        },
       });
-      console.log(`开始处理${stocks.length}支股票的KDJ数据`);
 
-      if (!stocks || stocks.length === 0) {
-        console.error('没有找到任何股票数据');
+      if (!activeMonitors || activeMonitors.length === 0) {
+        console.log('没有找到任何激活的 KDJ 监控配置');
         return;
       }
 
-      for (const stock of stocks) {
+      console.log(`开始处理${activeMonitors.length}个 KDJ 监控配置`);
+
+      for (const monitor of activeMonitors) {
         try {
-          console.log(`开始计算 ${stock.symbol} 的KDJ数据`);
+          console.log(`开始计算 ${monitor.stock.symbol} 的KDJ数据`);
 
           // 确保 longBridgeClient 已正确初始化
           if (!this.longBridgeClient) {
@@ -209,11 +254,11 @@ export class MonitorScheduler {
           await new Promise((resolve) => setTimeout(resolve, 1000));
 
           const kdjData = await this.longBridgeClient.calculateKDJ(
-            stock.symbol,
+            monitor.stock.symbol,
           );
 
           if (!kdjData || !Array.isArray(kdjData) || kdjData.length === 0) {
-            console.error(`${stock.symbol} 的KDJ数据计算结果为空`);
+            console.error(`${monitor.stock.symbol} 的KDJ数据计算结果为空`);
             continue;
           }
 
@@ -225,14 +270,33 @@ export class MonitorScheduler {
             typeof latestKDJ.d !== 'number' ||
             typeof latestKDJ.j !== 'number'
           ) {
-            console.error(`${stock.symbol} 的KDJ数据格式不正确:`, latestKDJ);
+            console.error(
+              `${monitor.stock.symbol} 的KDJ数据格式不正确:`,
+              latestKDJ,
+            );
             continue;
           }
 
-          if (latestKDJ.j < 0) {
-            await sendCanBuyMessageByPushDeer(
-              stock.symbol,
-              stock.name,
+          // 检查是否满足监控条件
+          const isTriggered =
+            monitor.condition === 'ABOVE'
+              ? latestKDJ.j > monitor.threshold
+              : latestKDJ.j < monitor.threshold;
+
+          if (isTriggered) {
+            await this.createNotification(
+              {
+                id: monitor.id,
+                stockId: monitor.stockId,
+                isActive: monitor.isActive,
+                condition: monitor.condition as Monitor['condition'],
+                type: monitor.type as Monitor['type'],
+                value: monitor.threshold,
+                stock: {
+                  symbol: monitor.stock.symbol,
+                  name: monitor.stock.name,
+                },
+              },
               latestKDJ.j,
             );
           }
@@ -240,7 +304,7 @@ export class MonitorScheduler {
           // 保存KDJ数据到数据库
           await prisma.kdj.create({
             data: {
-              stockId: stock.id,
+              stockId: monitor.stockId,
               k: latestKDJ.k,
               d: latestKDJ.d,
               j: latestKDJ.j,
@@ -248,10 +312,10 @@ export class MonitorScheduler {
           });
 
           console.log(
-            `成功计算并保存 ${stock.symbol} 的KDJ数据: K=${latestKDJ.k}, D=${latestKDJ.d}, J=${latestKDJ.j}`,
+            `成功计算并保存 ${monitor.stock.symbol} 的KDJ数据: K=${latestKDJ.k}, D=${latestKDJ.d}, J=${latestKDJ.j}`,
           );
         } catch (error) {
-          console.error(`计算 ${stock.symbol} 的KDJ数据失败:`, error);
+          console.error(`计算 ${monitor.stock.symbol} 的KDJ数据失败:`, error);
           // 继续处理下一支股票
           continue;
         }
@@ -322,7 +386,8 @@ export class MonitorScheduler {
     });
 
     // A股 KDJ 计算任务
-    schedule.scheduleJob('55 14 * * 1-5', async () => {
+    schedule.scheduleJob('*/1 * * * 1-5', async () => {
+      // schedule.scheduleJob('55 14 * * 1-5', async () => {
       console.log('开始执行 A 股每日 KDJ 计算任务');
       try {
         await this.calculateDailyKDJ(['SH', 'SZ']);

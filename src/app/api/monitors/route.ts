@@ -34,10 +34,7 @@ export async function POST(request: Request) {
     return NextResponse.json(monitor);
   } catch (error) {
     console.error('创建监控规则失败:', error);
-    return NextResponse.json(
-      { error: '创建监控规则失败' },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: '创建监控规则失败' }, { status: 500 });
   }
 }
 
@@ -64,13 +61,22 @@ export async function GET(request: Request) {
       },
     });
 
+    if (!monitors) {
+      return NextResponse.json({ error: '没有找到监控规则' }, { status: 404 });
+    }
+
     return NextResponse.json(monitors);
   } catch (error) {
+    if (error instanceof Error) {
+      console.error('获取监控规则失败:', error.message);
+      return NextResponse.json(
+        { error: '获取监控规则失败', details: error.message },
+        { status: 500 },
+      );
+    }
+
     console.error('获取监控规则失败:', error);
-    return NextResponse.json(
-      { error: '获取监控规则失败' },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: '获取监控规则失败' }, { status: 500 });
   }
 }
 
@@ -80,10 +86,7 @@ export async function DELETE(request: Request) {
     const id = searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json(
-        { error: '缺少监控规则ID' },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: '缺少监控规则ID' }, { status: 400 });
     }
 
     await prisma.monitor.delete({
@@ -95,10 +98,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('删除监控规则失败:', error);
-    return NextResponse.json(
-      { error: '删除监控规则失败' },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: '删除监控规则失败' }, { status: 500 });
   }
 }
 
@@ -108,10 +108,7 @@ export async function PATCH(request: Request) {
     const { id, isActive } = body;
 
     if (!id) {
-      return NextResponse.json(
-        { error: '缺少监控规则ID' },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: '缺少监控规则ID' }, { status: 400 });
     }
 
     const monitor = await prisma.monitor.update({
@@ -126,9 +123,6 @@ export async function PATCH(request: Request) {
     return NextResponse.json(monitor);
   } catch (error) {
     console.error('更新监控规则失败:', error);
-    return NextResponse.json(
-      { error: '更新监控规则失败' },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: '更新监控规则失败' }, { status: 500 });
   }
 }

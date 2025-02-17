@@ -27,7 +27,7 @@ export async function sendCanBuyMessageByPushDeer(
   name: string,
   j: number,
 ) {
-  const title = `✅ 已到B1买点的股票: ${name}`;
+  const title = `✅ 监控到符合条件的股票: ${name}`;
   const message = [
     `### 股票代码: **${symbol}**`,
     `### 股票名称: **${name}**`,
