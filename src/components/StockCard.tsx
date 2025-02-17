@@ -51,20 +51,36 @@ export const StockCard = ({ data, onClick }: StockCardProps) => {
             {data.price.toFixed(2)}
           </p>
         </div>
-        {data.kdj && (
-          <div>
-            <p className='text-sm text-gray-500'>KDJ(J值)</p>
-            <p
-              className={cn(
-                'text-2xl font-semibold',
-                data.kdj.j < -5 && 'text-red-500',
-                data.kdj.j < 20 && 'text-yellow-500',
-              )}
-            >
-              {data.kdj.j.toFixed(2)}
-            </p>
-          </div>
-        )}
+        <div className='flex gap-4'>
+          {data.kdj && (
+            <div>
+              <p className='text-sm text-gray-500'>日线KDJ(J值)</p>
+              <p
+                className={cn(
+                  'text-2xl font-semibold',
+                  data.kdj.j < -5 && 'text-red-500',
+                  data.kdj.j < 20 && 'text-yellow-500',
+                )}
+              >
+                {data.kdj.j.toFixed(2)}
+              </p>
+            </div>
+          )}
+          {data.weeklyKdj && (
+            <div>
+              <p className='text-sm text-gray-500'>周线KDJ(J值)</p>
+              <p
+                className={cn(
+                  'text-2xl font-semibold',
+                  data.weeklyKdj.j < -5 && 'text-red-500',
+                  data.weeklyKdj.j < 20 && 'text-yellow-500',
+                )}
+              >
+                {data.weeklyKdj.j.toFixed(2)}
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* {data.kdj && (

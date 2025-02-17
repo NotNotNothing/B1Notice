@@ -14,6 +14,11 @@ export interface StockData {
     d: number;
     j: number;
   };
+  weeklyKdj?: {
+    k: number;
+    d: number;
+    j: number;
+  };
 }
 
 export interface KLineData {
@@ -25,7 +30,7 @@ export interface KLineData {
   volume: number;
 }
 
-export type AlertType = 'PRICE' | 'VOLUME' | 'CHANGE_PERCENT' | 'KDJ_J';
+export type AlertType = 'PRICE' | 'VOLUME' | 'CHANGE_PERCENT' | 'KDJ_J' | 'WEEKLY_KDJ_J';
 export type AlertCondition = 'ABOVE' | 'BELOW';
 
 export interface AlertConfig {

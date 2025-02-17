@@ -12,6 +12,7 @@ type StockStore = {
   removeAlert: (id: string) => void;
   toggleAlert: (id: string) => void;
   toggleSortByKDJ: () => void;
+  removeStock: (symbol: string) => void;
 };
 
 // 曼城阵容
@@ -87,4 +88,8 @@ export const useStockStore = create<StockStore>((set) => ({
       });
       return { isKDJDescending: newIsDescending, stocks: sortedStocks };
     }),
+  removeStock: (symbol: string) =>
+    set((state) => ({
+      stocks: state.stocks.filter((stock) => stock.symbol !== symbol),
+    })),
 }));

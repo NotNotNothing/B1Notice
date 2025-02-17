@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { StockCard } from './StockCard';
 import { AlertForm } from './AlertForm';
 import { StockData } from '../types/stock';
+import { useStockStore } from '../store/useStockStore';
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,7 @@ export const StockList = ({ stocks, onStocksChange }: StockListProps) => {
   const [isAddingStock, setIsAddingStock] = useState(false);
   const [newStockSymbol, setNewStockSymbol] = useState('');
   const [newStockMarket, setNewStockMarket] = useState('HK');
+  const removeStock = useStockStore((state) => state.removeStock);
 
   const handleAddStock = async () => {
     if (!newStockSymbol) {
@@ -62,6 +64,8 @@ export const StockList = ({ stocks, onStocksChange }: StockListProps) => {
   };
 
   const handleDeleteStock = async (symbol: string) => {
+    removeStock(symbol);
+
     try {
       const response = await fetch(`/api/stocks?symbol=${symbol}`, {
         method: 'DELETE',
@@ -72,9 +76,9 @@ export const StockList = ({ stocks, onStocksChange }: StockListProps) => {
       }
 
       toast.success('删除股票成功');
-      onStocksChange();
     } catch (error) {
       toast.error('删除股票失败');
+      onStocksChange();
     }
   };
 
