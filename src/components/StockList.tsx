@@ -25,15 +25,16 @@ export const StockList = ({ stocks }: StockListProps) => {
               <StockCard data={stock} onClick={() => setSelectedStock(stock)} />
             </div>
           </DialogTrigger>
-          <DialogContent>
-            <DialogTitle>设置买点提醒</DialogTitle>
-            {selectedStock && (
+          {selectedStock && (
+            <DialogContent>
+              <DialogTitle>设置买点提醒</DialogTitle>
+
               <AlertForm
                 stock={selectedStock}
                 onClose={() => setSelectedStock(null)}
               />
-            )}
-          </DialogContent>
+            </DialogContent>
+          )}
         </Dialog>
       ))}
     </div>

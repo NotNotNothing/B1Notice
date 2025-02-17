@@ -5,10 +5,10 @@ import redis from '../../lib/redis';
 
 const CACHE_EXPIRY = 60; // 缓存过期时间（秒）
 const CACHE_PREFIX = {
-  QUOTES: 'stock:quotes:',
-  KLINE: 'stock:kline:',
-  KDJ: 'stock:kdj:',
-  STATIC_INFO: 'stock:static:',
+  QUOTES: '1min:stock:quotes:',
+  KLINE: '1min:stock:kline:',
+  KDJ: '1min:stock:kdj:',
+  STATIC_INFO: '1min:stock:static:',
 };
 
 export class LongBridgeClient {
@@ -239,14 +239,16 @@ export class LongBridgeClient {
         throw new Error('Failed to create QuoteContext');
       }
 
-      const quote = await this.quoteContext.securityQuote([symbol]);
+      const quote = await this.quoteContext.quote([symbol]);
       if (!quote || quote.length === 0) return null;
 
       const securityQuote = quote[0];
+      const lastDone = Number(securityQuote.lastDone);
+      const prevClose = Number(securityQuote.prevClose);
       return {
-        price: securityQuote.price,
-        volume: securityQuote.volume,
-        changeRate: securityQuote.changeRate,
+        price: lastDone,
+        volume: Number(securityQuote.volume),
+        changeRate: ((lastDone - prevClose) / prevClose) * 100,
       };
     } catch (error) {
       console.error(`获取行情数据失败: ${error}`);

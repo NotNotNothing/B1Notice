@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 const alertTypes = [
   { value: 'PRICE', label: '价格' },
@@ -42,18 +43,52 @@ export const AlertForm = ({ stock, onClose }: AlertFormProps) => {
   const [condition, setCondition] = useState<AlertConfig['condition']>('BELOW');
   const [value, setValue] = useState<number>(-5);
   const [enabled, setEnabled] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = () => {
-    const alert: AlertConfig = {
-      id: `${stock.symbol}-${type}-${Date.now()}`,
-      symbol: stock.symbol,
-      type,
-      condition,
-      value,
-      enabled,
-    };
-    addAlert(alert);
-    onClose?.();
+  const handleSubmit = async () => {
+    try {
+      setIsSubmitting(true);
+
+      // 保存到数据库
+      const response = await fetch('/api/monitors', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          stockSymbol: stock.symbol,
+          type,
+          condition,
+          threshold: value,
+          isActive: enabled,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('保存监控规则失败');
+      }
+
+      const data = await response.json();
+
+      // 更新本地状态
+      const alert: AlertConfig = {
+        id: data.id,
+        symbol: stock.symbol,
+        type,
+        condition,
+        value,
+        enabled,
+      };
+      addAlert(alert);
+
+      toast.success('监控规则已保存');
+      onClose?.();
+    } catch (error) {
+      console.error('保存监控规则失败:', error);
+      toast.error('保存监控规则失败，请重试');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -75,7 +110,9 @@ export const AlertForm = ({ stock, onClose }: AlertFormProps) => {
             </SelectTrigger>
             <SelectContent>
               {alertTypes.map((type) => (
-                <SelectItem value={type.value}> {type.label}</SelectItem>
+                <SelectItem key={type.value} value={type.value}>
+                  {type.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -90,11 +127,13 @@ export const AlertForm = ({ stock, onClose }: AlertFormProps) => {
             }
           >
             <SelectTrigger>
-              <SelectValue placeholder='请选择监控类型' />
+              <SelectValue placeholder='请选择条件' />
             </SelectTrigger>
             <SelectContent>
               {conditions.map((cond) => (
-                <SelectItem value={cond.value}> {cond.label}</SelectItem>
+                <SelectItem key={cond.value} value={cond.value}>
+                  {cond.label}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -118,17 +157,17 @@ export const AlertForm = ({ stock, onClose }: AlertFormProps) => {
         </div>
 
         <div className='flex items-center justify-between'>
-          <span className='text-sm text-muted-foreground'>启用预警</span>
+          <label className='text-sm text-muted-foreground'>启用监控</label>
           <Switch checked={enabled} onCheckedChange={setEnabled} />
         </div>
       </CardContent>
-
-      <CardFooter className='flex justify-end space-x-4'>
-        <Button variant='ghost' onClick={onClose}>
-          取消
-        </Button>
-        <Button variant='default' onClick={handleSubmit}>
-          确定
+      <CardFooter>
+        <Button
+          className='w-full'
+          onClick={handleSubmit}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? '保存中...' : '保存'}
         </Button>
       </CardFooter>
     </Card>

@@ -36,65 +36,104 @@ export class MonitorScheduler {
   private longBridgeClient: LongBridgeClient;
 
   constructor() {
+    this.longBridgeClient = getLongBridgeClient();
+  }
+
+  private async checkPrice(symbol: string): Promise<number | null> {
     try {
-      this.longBridgeClient = getLongBridgeClient();
-      if (!this.longBridgeClient) {
-        throw new Error('Failed to initialize LongBridge client');
-      }
+      const quote = await this.longBridgeClient.getQuote(symbol);
+      return quote?.price || null;
     } catch (error) {
-      console.error('Error initializing LongBridge client:', error);
-      throw error;
+      console.error(`获取${symbol}价格失败:`, error);
+      return null;
     }
   }
 
-  async checkIndicator(monitor: Monitor) {
+  private async checkVolume(symbol: string): Promise<number | null> {
     try {
-      const kdjData = await this.longBridgeClient.calculateKDJ(
-        monitor.stock.symbol,
-      );
-      if (!kdjData.length) return;
-
-      const latestKDJ = kdjData[kdjData.length - 1];
-      const currentValue = this.getIndicatorValue(monitor.type, latestKDJ);
-
-      if (this.checkCondition(currentValue, monitor.condition, monitor.value)) {
-        await this.createNotification(monitor, currentValue);
-      }
+      const quote = await this.longBridgeClient.getQuote(symbol);
+      return quote?.volume || null;
     } catch (error) {
-      console.error('Error checking indicator:', error);
+      console.error(`获取${symbol}成交量失败:`, error);
+      return null;
     }
   }
 
-  private getIndicatorValue(
-    type: Monitor['type'],
-    data: IndicatorData,
-  ): number {
-    switch (type) {
-      case 'KDJ_J':
-        return data.j ?? 0;
+  private async checkChangePercent(symbol: string): Promise<number | null> {
+    try {
+      const quote = await this.longBridgeClient.getQuote(symbol);
+      return quote?.changeRate || null;
+    } catch (error) {
+      console.error(`获取${symbol}涨跌幅失败:`, error);
+      return null;
+    }
+  }
+
+  private async checkKDJJ(symbol: string): Promise<number | null> {
+    try {
+      const kdjData = await this.longBridgeClient.calculateKDJ(symbol);
+      if (!kdjData.length) return null;
+      return kdjData[kdjData.length - 1].j;
+    } catch (error) {
+      console.error(`获取${symbol}KDJ数据失败:`, error);
+      return null;
+    }
+  }
+
+  private async getCurrentValue(monitor: Monitor): Promise<number | null> {
+    switch (monitor.type) {
       case 'PRICE':
-        return data.close ?? 0;
+        return this.checkPrice(monitor.stock.symbol);
       case 'VOLUME':
-        return data.volume ?? 0;
+        return this.checkVolume(monitor.stock.symbol);
       case 'CHANGE_PERCENT':
-        return data.changePercent ?? 0;
+        return this.checkChangePercent(monitor.stock.symbol);
+      case 'KDJ_J':
+        return this.checkKDJJ(monitor.stock.symbol);
       default:
-        return 0;
+        return null;
     }
   }
 
   private checkCondition(
-    value: number,
+    currentValue: number,
     condition: Monitor['condition'],
     threshold: number,
   ): boolean {
-    switch (condition) {
-      case 'ABOVE':
-        return value > threshold;
-      case 'BELOW':
-        return value < threshold;
-      default:
-        return false;
+    if (condition === 'ABOVE') {
+      return currentValue > threshold;
+    }
+    return currentValue < threshold;
+  }
+
+  async checkIndicator(monitor: Monitor) {
+    try {
+      const currentValue = await this.getCurrentValue(monitor);
+      if (currentValue === null) return;
+
+      if (this.checkCondition(currentValue, monitor.condition, monitor.value)) {
+        await this.createNotification(monitor, currentValue);
+      }
+
+      // 保存监控记录
+      await prisma.monitor.update({
+        where: { id: monitor.id },
+        data: {
+          updatedAt: new Date(),
+        },
+      });
+    } catch (error: unknown) {
+      console.error('检查指标失败:', error);
+      // 记录错误到数据库
+      await prisma.notification.create({
+        data: {
+          monitorId: monitor.id,
+          message: `监控检查失败: ${
+            error instanceof Error ? error.message : '未知错误'
+          }`,
+          status: 'FAILED',
+        },
+      });
     }
   }
 
@@ -224,45 +263,120 @@ export class MonitorScheduler {
   }
 
   async startMonitoring() {
-    // 每分钟检查一次活跃的监控规则
-    // schedule.scheduleJob('* * * * *', async () => {
-    //   const activeMonitors = await prisma.monitor.findMany({
-    //     where: { isActive: true },
-    //     include: {
-    //       stock: true,
-    //     },
-    //   });
-
-    //   // 映射数据库结果到 Monitor 类型
-    //   const monitors: Monitor[] = activeMonitors.map((dbMonitor) => ({
-    //     id: dbMonitor.id,
-    //     stockId: dbMonitor.stockId,
-    //     isActive: dbMonitor.isActive,
-    //     condition: dbMonitor.condition as Monitor['condition'],
-    //     type: dbMonitor.type as Monitor['type'],
-    //     value: dbMonitor.threshold,
-    //     stock: {
-    //       symbol: dbMonitor.stock.symbol,
-    //       name: dbMonitor.stock.name,
-    //     },
-    //   }));
-
-    //   for (const monitor of monitors) {
-    //     await this.checkIndicator(monitor);
-    //   }
+    // // A股上午盘监控（9:30-11:30）/ 每30分钟
+    // schedule.scheduleJob('30-59/30 9,10 * * 1-5', async () => {
+    //   await this.monitorMarket(['SH', 'SZ']);
+    // });
+    // schedule.scheduleJob('*/30 10 * * 1-5', async () => {
+    //   await this.monitorMarket(['SH', 'SZ']);
+    // });
+    // schedule.scheduleJob('0-30 11 * * 1-5', async () => {
+    //   await this.monitorMarket(['SH', 'SZ']);
     // });
 
-    // 添加每日KDJ计算任务 - 每天14:55执行
-    // schedule.scheduleJob('47 00 * * *', async () => {
-    schedule.scheduleJob('55 14 * * *', async () => {
-      console.log('开始执行每日KDJ计算任务');
-      await this.calculateDailyKDJ(['SH', 'SZ']);
+    // // A股下午盘监控（13:00-15:00）
+    // schedule.scheduleJob('*/30 13,14 * * 1-5', async () => {
+    //   await this.monitorMarket(['SH', 'SZ']);
+    // });
+    // schedule.scheduleJob('0-0 15 * * 1-5', async () => {
+    //   await this.monitorMarket(['SH', 'SZ']);
+    // });
+
+    // // 港股上午盘监控（9:30-12:00）
+    // schedule.scheduleJob('30-59/30 9,10,11 * * 1-5', async () => {
+    //   await this.monitorMarket(['HK']);
+    // });
+    // schedule.scheduleJob('*/30 10,11 * * 1-5', async () => {
+    //   await this.monitorMarket(['HK']);
+    // });
+    // schedule.scheduleJob('0-0 12 * * 1-5', async () => {
+    //   await this.monitorMarket(['HK']);
+    // });
+
+    // // 港股下午盘监控（13:00-16:00）
+    // schedule.scheduleJob('*/30 13,14,15 * * 1-5', async () => {
+    //   await this.monitorMarket(['HK']);
+    // });
+    // schedule.scheduleJob('0-0/30 16 * * 1-5', async () => {
+    //   await this.monitorMarket(['HK']);
+    // });
+
+    // 每天凌晨2点清理7天前的通知
+    schedule.scheduleJob('0 2 * * *', async () => {
+      try {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        await prisma.notification.deleteMany({
+          where: {
+            createdAt: {
+              lt: sevenDaysAgo,
+            },
+          },
+        });
+
+        console.log('已清理7天前的通知');
+      } catch (error) {
+        console.error('清理通知失败:', error);
+      }
     });
-    // 添加每日KDJ计算任务 - 每天14:55执行
-    schedule.scheduleJob('55 15 * * *', async () => {
-      console.log('开始执行每日KDJ计算任务');
-      await this.calculateDailyKDJ(['HK', 'US']);
+
+    // A股 KDJ 计算任务 - 每天 15:05 执行
+    schedule.scheduleJob('5 15 * * 1-5', async () => {
+      console.log('开始执行 A 股每日 KDJ 计算任务');
+      try {
+        await this.calculateDailyKDJ(['SH', 'SZ']);
+      } catch (error) {
+        console.error('A股 KDJ 计算任务执行失败:', error);
+      }
     });
+
+    // 港股 KDJ 计算任务 - 每天 16:05 执行
+    schedule.scheduleJob('5 16 * * 1-5', async () => {
+      console.log('开始执行港股每日 KDJ 计算任务');
+      try {
+        await this.calculateDailyKDJ(['HK']);
+      } catch (error) {
+        console.error('港股 KDJ 计算任务执行失败:', error);
+      }
+    });
+  }
+
+  private async monitorMarket(markets: string[]) {
+    try {
+      const activeMonitors = await prisma.monitor.findMany({
+        where: {
+          isActive: true,
+          stock: {
+            market: {
+              in: markets
+            }
+          }
+        },
+        include: {
+          stock: true,
+        },
+      });
+
+      const monitors: Monitor[] = activeMonitors.map((dbMonitor) => ({
+        id: dbMonitor.id,
+        stockId: dbMonitor.stockId,
+        isActive: dbMonitor.isActive,
+        condition: dbMonitor.condition as Monitor['condition'],
+        type: dbMonitor.type as Monitor['type'],
+        value: dbMonitor.threshold,
+        stock: {
+          symbol: dbMonitor.stock.symbol,
+          name: dbMonitor.stock.name,
+        },
+      }));
+
+      await Promise.all(
+        monitors.map((monitor) => this.checkIndicator(monitor)),
+      );
+    } catch (error) {
+      console.error(`监控任务执行失败 (markets: ${markets.join(', ')}):`, error);
+    }
   }
 }
 
