@@ -1,7 +1,9 @@
 export interface StockData {
+  id: string;
   symbol: string;
   name: string;
   nameCn: string;
+  market: string;
   price: number;
   changePercent: number;
   volume: number;

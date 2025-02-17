@@ -386,8 +386,8 @@ export class MonitorScheduler {
     });
 
     // A股 KDJ 计算任务
-    schedule.scheduleJob('*/1 * * * 1-5', async () => {
-      // schedule.scheduleJob('55 14 * * 1-5', async () => {
+    // schedule.scheduleJob('*/1 * * * 1-5', async () => {
+      schedule.scheduleJob('50,55 14 * * 1-5', async () => {
       console.log('开始执行 A 股每日 KDJ 计算任务');
       try {
         await this.calculateDailyKDJ(['SH', 'SZ']);
@@ -397,7 +397,7 @@ export class MonitorScheduler {
     });
 
     // 港股 KDJ 计算任务
-    schedule.scheduleJob('55 14 * * 1-5', async () => {
+    schedule.scheduleJob('50,55 14 * * 1-5', async () => {
       console.log('开始执行港股每日 KDJ 计算任务');
       try {
         await this.calculateDailyKDJ(['HK']);

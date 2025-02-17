@@ -255,6 +255,10 @@ export class LongBridgeClient {
       return null;
     }
   }
+
+  async getStockInfo(symbol: string) {
+    return this.getStockStaticInfo(symbol);
+  }
 }
 
 // 单例模式
