@@ -3,7 +3,7 @@ import { KLine, KDJResult } from './types';
 import { StockData } from '../../types/stock';
 import redis from '../../lib/redis';
 
-const CACHE_EXPIRY = 60 * 60 * 24 * 7; // 缓存过期时间（秒）
+const CACHE_EXPIRY = 60; // 缓存过期时间（秒）
 const CACHE_PREFIX = {
   QUOTES: 'stock:quotes:',
   KLINE: 'stock:kline:',
@@ -222,6 +222,35 @@ export class LongBridgeClient {
     } catch (error) {
       console.error('Error calculating KDJ:', error);
       throw error;
+    }
+  }
+
+  async getQuote(symbol: string): Promise<{
+    price: number;
+    volume: number;
+    changeRate: number;
+  } | null> {
+    try {
+      if (!this.quoteContext) {
+        this.quoteContext = await QuoteContext.new(this.config);
+      }
+
+      if (!this.quoteContext) {
+        throw new Error('Failed to create QuoteContext');
+      }
+
+      const quote = await this.quoteContext.securityQuote([symbol]);
+      if (!quote || quote.length === 0) return null;
+
+      const securityQuote = quote[0];
+      return {
+        price: securityQuote.price,
+        volume: securityQuote.volume,
+        changeRate: securityQuote.changeRate,
+      };
+    } catch (error) {
+      console.error(`获取行情数据失败: ${error}`);
+      return null;
     }
   }
 }
