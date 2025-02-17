@@ -321,8 +321,8 @@ export class MonitorScheduler {
       }
     });
 
-    // A股 KDJ 计算任务 - 每天 15:05 执行
-    schedule.scheduleJob('5 15 * * 1-5', async () => {
+    // A股 KDJ 计算任务
+    schedule.scheduleJob('55 14 * * 1-5', async () => {
       console.log('开始执行 A 股每日 KDJ 计算任务');
       try {
         await this.calculateDailyKDJ(['SH', 'SZ']);
@@ -331,8 +331,8 @@ export class MonitorScheduler {
       }
     });
 
-    // 港股 KDJ 计算任务 - 每天 16:05 执行
-    schedule.scheduleJob('5 16 * * 1-5', async () => {
+    // 港股 KDJ 计算任务
+    schedule.scheduleJob('55 14 * * 1-5', async () => {
       console.log('开始执行港股每日 KDJ 计算任务');
       try {
         await this.calculateDailyKDJ(['HK']);
@@ -349,9 +349,9 @@ export class MonitorScheduler {
           isActive: true,
           stock: {
             market: {
-              in: markets
-            }
-          }
+              in: markets,
+            },
+          },
         },
         include: {
           stock: true,
@@ -375,7 +375,10 @@ export class MonitorScheduler {
         monitors.map((monitor) => this.checkIndicator(monitor)),
       );
     } catch (error) {
-      console.error(`监控任务执行失败 (markets: ${markets.join(', ')}):`, error);
+      console.error(
+        `监控任务执行失败 (markets: ${markets.join(', ')}):`,
+        error,
+      );
     }
   }
 }
