@@ -78,9 +78,11 @@ export class LongBridgeClient {
       const staticInfo = staticInfoResults[index];
 
       const stockData: StockData = {
+        id: `${symbols[index]}_${new Date().toISOString()}`,
         symbol: symbols[index],
         name: quote.symbol,
         nameCn: staticInfo?.nameCn || '',
+        market: symbols[index].split('.')[1] || 'UNKNOWN',
         price: lastDone,
         changePercent,
         volume: Number(quote.volume),
