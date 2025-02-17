@@ -162,12 +162,19 @@ export class MonitorScheduler {
 
       const message = this.generateNotificationMessage(monitor, value);
 
-      await prisma.notification.create({
-        data: {
-          monitorId: monitor.id,
-          message,
-          status: 'PENDING',
-        },
+      // TODO: 先直接发通知，不存队列了
+      // await prisma.notification.create({
+      //   data: {
+      //     monitorId: monitor.id,
+      //     message,
+      //     status: 'PENDING',
+      //   },
+      // });
+
+      // 更新最后通知时间
+      await prisma.monitor.update({
+        where: { id: monitor.id },
+        data: { lastNotifiedAt: now },
       });
 
       await sendCanBuyMessageByPushDeer(
@@ -175,12 +182,6 @@ export class MonitorScheduler {
         monitor.stock.name,
         value,
       );
-
-      // 更新最后通知时间
-      await prisma.monitor.update({
-        where: { id: monitor.id },
-        data: { lastNotifiedAt: now },
-      });
     } catch (error) {
       console.error('创建通知失败:', error);
     }
@@ -387,7 +388,7 @@ export class MonitorScheduler {
 
     // A股 KDJ 计算任务
     // schedule.scheduleJob('*/1 * * * 1-5', async () => {
-      schedule.scheduleJob('50,55 14 * * 1-5', async () => {
+    schedule.scheduleJob('50,55 14 * * 1-5', async () => {
       console.log('开始执行 A 股每日 KDJ 计算任务');
       try {
         await this.calculateDailyKDJ(['SH', 'SZ']);
@@ -397,7 +398,7 @@ export class MonitorScheduler {
     });
 
     // 港股 KDJ 计算任务
-    schedule.scheduleJob('50,55 14 * * 1-5', async () => {
+    schedule.scheduleJob('50,55 15 * * 1-5', async () => {
       console.log('开始执行港股每日 KDJ 计算任务');
       try {
         await this.calculateDailyKDJ(['HK']);
