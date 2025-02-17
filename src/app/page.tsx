@@ -6,12 +6,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { KDJCalculator } from '../components/KDJCalculator';
 import { StockList } from '../components/StockList';
 import { AlertPanel } from '../components/AlertPanel';
+import { Button } from '@/components/ui/button';
+import { ArrowUpDown } from 'lucide-react';
 
 export default function Home() {
-  const { stocks, fetchStocks } = useStockStore();
+  const { stocks, fetchStocks, isKDJDescending, toggleSortByKDJ } =
+    useStockStore();
 
   useEffect(() => {
     fetchStocks();
+    const interval = setInterval(fetchStocks, 5 * 60 * 1000); // 每5分钟刷新一次
+    return () => clearInterval(interval);
   }, [fetchStocks]);
 
   return (
@@ -21,7 +26,17 @@ export default function Home() {
           <h1 className='text-2xl font-bold'>曼城阵容监控</h1>
           <p className='text-sm text-gray-500'>不追！不慌！不动！不乱摸！</p>
         </div>
-        <Badge variant='outline'>Beta</Badge>
+        <div className='flex items-center gap-2'>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={toggleSortByKDJ}
+            className='flex items-center gap-1'
+          >
+            <ArrowUpDown className='h-4 w-4' />
+            {isKDJDescending ? 'KDJ降序' : 'KDJ升序'}
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue='stocks'>
@@ -33,8 +48,8 @@ export default function Home() {
 
         <TabsContent value='stocks'>
           {stocks.length === 0 ? (
-            <div className="flex justify-center items-center min-h-[200px]">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
+            <div className='flex justify-center items-center min-h-[200px]'>
+              <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900' />
             </div>
           ) : (
             <StockList stocks={stocks} onStocksChange={fetchStocks} />

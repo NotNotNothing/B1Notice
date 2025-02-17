@@ -6,10 +6,12 @@ type StockStore = {
   alerts: AlertConfig[];
   loading: boolean;
   error: string | null;
+  isKDJDescending: boolean;
   fetchStocks: () => Promise<void>;
   addAlert: (alert: AlertConfig) => void;
   removeAlert: (id: string) => void;
   toggleAlert: (id: string) => void;
+  toggleSortByKDJ: () => void;
 };
 
 // 曼城阵容
@@ -35,6 +37,7 @@ export const useStockStore = create<StockStore>((set) => ({
   alerts: [],
   loading: false,
   error: null,
+  isKDJDescending: false,
   fetchStocks: async () => {
     set({ loading: true, error: null });
     try {
@@ -43,7 +46,16 @@ export const useStockStore = create<StockStore>((set) => ({
         throw new Error('Network response was not ok');
       }
       const stocksData = await response.json();
-      set({ stocks: stocksData, loading: false });
+      set((state) => {
+        const sortedStocks = [...stocksData].sort((a, b) => {
+          if (state.isKDJDescending) {
+            return (b.kdj?.j || 0) - (a.kdj?.j || 0); // 降序：大 -> 小
+          } else {
+            return (a.kdj?.j || 0) - (b.kdj?.j || 0); // 升序：小 -> 大
+          }
+        });
+        return { stocks: sortedStocks, loading: false };
+      });
     } catch (error) {
       set({ error: '获取股票数据失败', loading: false });
       console.error('获取股票数据失败:', error);
@@ -63,4 +75,16 @@ export const useStockStore = create<StockStore>((set) => ({
         alert.id === id ? { ...alert, enabled: !alert.enabled } : alert,
       ),
     })),
+  toggleSortByKDJ: () =>
+    set((state) => {
+      const newIsDescending = !state.isKDJDescending;
+      const sortedStocks = [...state.stocks].sort((a, b) => {
+        if (newIsDescending) {
+          return (b.kdj?.j || 0) - (a.kdj?.j || 0); // 降序：大 -> 小
+        } else {
+          return (a.kdj?.j || 0) - (b.kdj?.j || 0); // 升序：小 -> 大
+        }
+      });
+      return { isKDJDescending: newIsDescending, stocks: sortedStocks };
+    }),
 }));
