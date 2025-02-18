@@ -3,6 +3,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+ARG DB_TYPE=pgsql
+ENV DB_TYPE=$DB_TYPE
+
 # 复制 package.json 和 package-lock.json
 COPY package*.json ./
 COPY prisma ./prisma/
@@ -24,6 +27,8 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
+ARG DB_TYPE=pgsql
+ENV DB_TYPE=$DB_TYPE
 ENV NODE_ENV=production
 
 # 复制必要的文件

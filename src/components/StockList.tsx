@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { Loader2 } from 'lucide-react';
 
 interface StockListProps {
   stocks: StockData[];
@@ -27,6 +28,7 @@ interface StockListProps {
 
 export const StockList = ({ stocks, onStocksChange }: StockListProps) => {
   const [selectedStock, setSelectedStock] = useState<StockData | null>(null);
+  const [showAddStockDialog, setShowAddStockDialog] = useState(false);
   const [isAddingStock, setIsAddingStock] = useState(false);
   const [newStockSymbol, setNewStockSymbol] = useState('');
   const [newStockMarket, setNewStockMarket] = useState('HK');
@@ -39,6 +41,8 @@ export const StockList = ({ stocks, onStocksChange }: StockListProps) => {
     }
 
     try {
+      setIsAddingStock(true);
+
       const response = await fetch('/api/stocks', {
         method: 'POST',
         headers: {
@@ -56,6 +60,8 @@ export const StockList = ({ stocks, onStocksChange }: StockListProps) => {
 
       toast.success('添加股票成功');
       setIsAddingStock(false);
+      setShowAddStockDialog(false);
+
       setNewStockSymbol('');
       onStocksChange();
     } catch (error) {
@@ -86,7 +92,7 @@ export const StockList = ({ stocks, onStocksChange }: StockListProps) => {
     <div>
       <div className='mb-4 flex justify-between items-center'>
         <h2 className='text-2xl font-bold'>股票列表</h2>
-        <Dialog open={isAddingStock} onOpenChange={setIsAddingStock}>
+        <Dialog open={showAddStockDialog} onOpenChange={setShowAddStockDialog}>
           <DialogTrigger asChild>
             <Button>添加股票</Button>
           </DialogTrigger>
@@ -114,46 +120,55 @@ export const StockList = ({ stocks, onStocksChange }: StockListProps) => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={handleAddStock}>确认添加</Button>
+              <Button disabled={isAddingStock} onClick={handleAddStock}>
+                {isAddingStock && <Loader2 className='animate-spin' />}
+                确认添加
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
-        {stocks.map((stock) => (
-          <Dialog key={stock.symbol}>
-            <DialogTrigger asChild>
-              <div className='relative group'>
-                <StockCard
-                  data={stock}
-                  onClick={() => setSelectedStock(stock)}
-                />
-                <Button
-                  variant='destructive'
-                  size='icon'
-                  className='absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity h-5 w-5 text-xs'
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteStock(stock.symbol);
-                  }}
-                >
-                  X
-                </Button>
-              </div>
-            </DialogTrigger>
-            {selectedStock && (
-              <DialogContent>
-                <DialogTitle>设置买点提醒</DialogTitle>
-                <AlertForm
-                  stock={selectedStock}
-                  onClose={() => setSelectedStock(null)}
-                />
-              </DialogContent>
-            )}
-          </Dialog>
-        ))}
-      </div>
+      {stocks.length === 0 ? (
+        <div className='flex justify-center items-center min-h-[200px]'>
+          <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900' />
+        </div>
+      ) : (
+        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+          {stocks.map((stock) => (
+            <Dialog key={stock.symbol}>
+              <DialogTrigger asChild>
+                <div className='relative group'>
+                  <StockCard
+                    data={stock}
+                    onClick={() => setSelectedStock(stock)}
+                  />
+                  <Button
+                    variant='destructive'
+                    size='icon'
+                    className='absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity h-5 w-5 text-xs'
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteStock(stock.symbol);
+                    }}
+                  >
+                    X
+                  </Button>
+                </div>
+              </DialogTrigger>
+              {selectedStock && (
+                <DialogContent>
+                  <DialogTitle>设置买点提醒</DialogTitle>
+                  <AlertForm
+                    stock={selectedStock}
+                    onClose={() => setSelectedStock(null)}
+                  />
+                </DialogContent>
+              )}
+            </Dialog>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

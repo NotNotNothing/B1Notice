@@ -12,6 +12,7 @@ import schedule from 'node-schedule';
 import { LongBridgeClient } from '../server/longbridge/client';
 import { sendCanBuyMessageByPushDeer } from '@/server/pushdeer';
 import { info } from 'console';
+import { KDJ_TYPE } from '@/app/api/stocks/route';
 
 // K线周期定义
 const KLINE_PERIOD = {
@@ -44,7 +45,7 @@ const logger = {
   info: (message: string, meta?: any) => {
     console.info(`[Monitor] ${message}`, meta ? JSON.stringify(meta) : '');
   },
-  error: (message: string, error: unknown) => {
+  error: (message: string, error?: unknown) => {
     console.error(
       `[Monitor Error] ${message}:`,
       error instanceof Error ? error.message : error,
@@ -61,30 +62,45 @@ export class MonitorScheduler {
 
   private async checkPrice(symbol: string): Promise<number | null> {
     try {
-      const quote = await this.longBridgeClient.getQuote(symbol);
-      return quote?.price || null;
+      const quote = await prisma.quote.findFirst({
+        where: {
+          stock: { symbol },
+        },
+        select: { price: true },
+      });
+      return quote?.price ?? null;
     } catch (error) {
-      console.error(`获取${symbol}价格失败:`, error);
+      logger.error(`从数据库查询${symbol}价格失败`, error);
       return null;
     }
   }
 
   private async checkVolume(symbol: string): Promise<number | null> {
     try {
-      const quote = await this.longBridgeClient.getQuote(symbol);
-      return quote?.volume || null;
+      const quote = await prisma.quote.findFirst({
+        where: {
+          stock: { symbol },
+        },
+        select: { volume: true },
+      });
+      return quote?.volume ?? null;
     } catch (error) {
-      console.error(`获取${symbol}成交量失败:`, error);
+      logger.error(`从数据库查询${symbol}成交量失败`, error);
       return null;
     }
   }
 
   private async checkChangePercent(symbol: string): Promise<number | null> {
     try {
-      const quote = await this.longBridgeClient.getQuote(symbol);
-      return quote?.changeRate || null;
+      const quote = await prisma.quote.findFirst({
+        where: {
+          stock: { symbol },
+        },
+        select: { changePercent: true },
+      });
+      return quote?.changePercent ?? null;
     } catch (error) {
-      console.error(`获取${symbol}涨跌幅失败:`, error);
+      logger.error(`从数据库查询${symbol}涨跌幅失败`, error);
       return null;
     }
   }
@@ -94,16 +110,22 @@ export class MonitorScheduler {
     isWeekly: boolean = false,
   ): Promise<number | null> {
     try {
-      const kdjData = await this.longBridgeClient.calculateKDJ(
-        symbol,
-        9,
-        isWeekly ? KLINE_PERIOD.WEEK : KLINE_PERIOD.DAY,
-      );
-      if (!kdjData.length) return null;
-      return kdjData[kdjData.length - 1].j;
+      const kdjRecord = await prisma.kdj.findFirst({
+        where: {
+          stock: { symbol },
+          type: isWeekly ? KDJ_TYPE.WEEKLY : KDJ_TYPE.DAILY,
+        },
+        select: { j: true },
+      });
+
+      if (!kdjRecord) {
+        logger.error(`找不到${symbol}${isWeekly ? '周线' : '日线'}KDJ记录`);
+        return null;
+      }
+      return kdjRecord.j;
     } catch (error) {
-      console.error(
-        `获取${symbol}${isWeekly ? '周线' : '日线'}KDJ数据失败:`,
+      logger.error(
+        `查询${symbol}${isWeekly ? '周线' : '日线'}KDJ数据失败:`,
         error,
       );
       return null;
@@ -292,50 +314,71 @@ export class MonitorScheduler {
   private async processKDJMonitor(monitor: any) {
     try {
       const isWeekly = monitor.type === 'WEEKLY_KDJ_J';
-      logger.info(`计算${isWeekly ? '周线' : '日线'} KDJ 数据`, {
+
+      // 如果是周线KDJ，只在周五计算
+      if (isWeekly) {
+        const today = new Date();
+        const dayOfWeek = today.getDay(); // 0 是周日，5 是周五
+        if (dayOfWeek !== 5) {
+          logger.info('非周五，跳过周线KDJ计算', {
+            symbol: monitor.stock.symbol,
+            dayOfWeek,
+          });
+          return;
+        }
+      }
+
+      logger.info(`获取${isWeekly ? '周线' : '日线'} KDJ 数据`, {
         symbol: monitor.stock.symbol,
       });
 
-      if (!this.longBridgeClient) {
-        this.longBridgeClient = getLongBridgeClient();
-      }
+      // 从数据库获取最新的 KDJ 数据
+      const latestKDJ = await prisma.kdj.findFirst({
+        where: {
+          stockId: monitor.stockId,
+          type: isWeekly ? KDJ_TYPE.WEEKLY : KDJ_TYPE.DAILY,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      const kdjData = await this.longBridgeClient.calculateKDJ(
-        monitor.stock.symbol,
-        9,
-        isWeekly ? KLINE_PERIOD.WEEK : KLINE_PERIOD.DAY,
-      );
-
-      if (!this.validateKDJData(kdjData)) {
-        logger.error(`KDJ数据无效`, {
+      if (!latestKDJ) {
+        logger.error(`数据库中未找到 KDJ 数据`, {
           symbol: monitor.stock.symbol,
-          data: kdjData,
+          type: isWeekly ? 'WEEKLY' : 'DAILY',
         });
         return;
       }
 
-      const latestKDJ = kdjData[kdjData.length - 1];
-      await this.processKDJResult(monitor, latestKDJ);
+      await this.processKDJResult(monitor, latestKDJ, isWeekly);
     } catch (error) {
       logger.error(`处理 KDJ 监控失败: ${monitor.stock.symbol}`, error);
     }
   }
 
-  private validateKDJData(kdjData: any[]): boolean {
-    if (!Array.isArray(kdjData) || !kdjData.length) return false;
-
-    const latest = kdjData[kdjData.length - 1];
+  private validateKDJData(kdjData: any): boolean {
     return (
-      typeof latest?.k === 'number' &&
-      typeof latest?.d === 'number' &&
-      typeof latest?.j === 'number'
+      typeof kdjData?.k === 'number' &&
+      typeof kdjData?.d === 'number' &&
+      typeof kdjData?.j === 'number'
     );
   }
 
-  private async processKDJResult(monitor: any, latestKDJ: any) {
+  private async processKDJResult(
+    monitor: any,
+    latestKDJ: any,
+    isWeekly: boolean,
+  ) {
     try {
+      if (!this.validateKDJData(latestKDJ)) {
+        logger.error(`KDJ数据无效`, {
+          symbol: monitor.stock.symbol,
+          data: latestKDJ,
+        });
+        return;
+      }
+
       // 检查是否满足监控条件
       const isTriggered =
         monitor.condition === 'ABOVE'
@@ -360,18 +403,8 @@ export class MonitorScheduler {
         );
       }
 
-      // 保存KDJ数据到数据库
-      await prisma.kdj.create({
-        data: {
-          stockId: monitor.stockId,
-          k: latestKDJ.k,
-          d: latestKDJ.d,
-          j: latestKDJ.j,
-        },
-      });
-
       logger.info(
-        `成功计算并保存 KDJ 数据: K=${latestKDJ.k}, D=${latestKDJ.d}, J=${latestKDJ.j}`,
+        `成功处理 KDJ 数据: K=${latestKDJ.k}, D=${latestKDJ.d}, J=${latestKDJ.j}`,
         {
           symbol: monitor.stock.symbol,
         },
@@ -381,9 +414,173 @@ export class MonitorScheduler {
     }
   }
 
+  private async fetchAndStoreStockData(markets: string[]) {
+    try {
+      // 获取所有需要监控的股票
+      const stocks = await prisma.stock.findMany({
+        where: {
+          market: { in: markets },
+        },
+      });
+
+      logger.info(`开始获取${markets.join(',')}市场的股票数据`, {
+        stockCount: stocks.length,
+      });
+
+      for (const stock of stocks) {
+        try {
+          logger.info(`开始处理股票: ${stock.symbol}`, { stockId: stock.id });
+
+          // 获取股票报价
+          const quote = await this.longBridgeClient.getQuote(stock.symbol);
+          if (!quote) {
+            logger.error(`获取股票${stock.symbol}报价失败`);
+            continue;
+          }
+
+          // 获取日线KDJ
+          const dailyKdj = await this.longBridgeClient.calculateKDJ(
+            stock.symbol,
+            9,
+            KLINE_PERIOD.DAY,
+          );
+
+          // 获取周线KDJ
+          const weeklyKdj = await this.longBridgeClient.calculateKDJ(
+            stock.symbol,
+            9,
+            KLINE_PERIOD.WEEK,
+          );
+
+          if (!dailyKdj.length || !weeklyKdj.length) {
+            logger.error(`获取股票${stock.symbol}KDJ数据失败`);
+            continue;
+          }
+
+          try {
+            // 存储日线KDJ
+            const existingDailyKdj = await prisma.kdj.findFirst({
+              where: {
+                stockId: stock.id,
+                type: 'DAILY',
+              },
+              select: { id: true },
+            });
+
+            const latestDailyKdj = await prisma.kdj.upsert({
+              where: {
+                id: existingDailyKdj?.id ?? 'new',
+              },
+              update: {
+                k: dailyKdj[dailyKdj.length - 1].k,
+                d: dailyKdj[dailyKdj.length - 1].d,
+                j: dailyKdj[dailyKdj.length - 1].j,
+                date: new Date(),
+              },
+              create: {
+                stockId: stock.id,
+                k: dailyKdj[dailyKdj.length - 1].k,
+                d: dailyKdj[dailyKdj.length - 1].d,
+                j: dailyKdj[dailyKdj.length - 1].j,
+                type: 'DAILY',
+                date: new Date(),
+              },
+            });
+
+            logger.info(`成功存储日线KDJ数据: ${stock.symbol}`, {
+              kdjId: latestDailyKdj.id,
+            });
+
+            // 存储周线KDJ
+            const existingWeeklyKdj = await prisma.kdj.findFirst({
+              where: {
+                stockId: stock.id,
+                type: 'WEEKLY',
+              },
+              select: { id: true },
+            });
+
+            const latestWeeklyKdj = await prisma.kdj.upsert({
+              where: {
+                id: existingWeeklyKdj?.id ?? 'new',
+              },
+              update: {
+                k: weeklyKdj[weeklyKdj.length - 1].k,
+                d: weeklyKdj[weeklyKdj.length - 1].d,
+                j: weeklyKdj[weeklyKdj.length - 1].j,
+                date: new Date(),
+              },
+              create: {
+                stockId: stock.id,
+                k: weeklyKdj[weeklyKdj.length - 1].k,
+                d: weeklyKdj[weeklyKdj.length - 1].d,
+                j: weeklyKdj[weeklyKdj.length - 1].j,
+                type: 'WEEKLY',
+                date: new Date(),
+              },
+            });
+
+            logger.info(`成功存储周线KDJ数据: ${stock.symbol}`, {
+              kdjId: latestWeeklyKdj.id,
+            });
+
+            // 存储股票报价
+            const existingQuote = await prisma.quote.findFirst({
+              where: {
+                stockId: stock.id,
+              },
+              select: { id: true },
+            });
+
+            await prisma.quote.upsert({
+              where: {
+                id: existingQuote?.id ?? 'new',
+              },
+              update: {
+                price: quote.price,
+                volume: quote.volume,
+                changePercent: quote.changeRate,
+                dailyKdjId: latestDailyKdj.id,
+                weeklyKdjId: latestWeeklyKdj.id,
+              },
+              create: {
+                stockId: stock.id,
+                price: quote.price,
+                volume: quote.volume,
+                changePercent: quote.changeRate,
+                dailyKdjId: latestDailyKdj.id,
+                weeklyKdjId: latestWeeklyKdj.id,
+              },
+            });
+
+            logger.info(`成功更新股票${stock.symbol}数据`);
+          } catch (dbError) {
+            logger.error(`数据库操作失败: ${stock.symbol}`, {
+              error: dbError,
+              stockId: stock.id,
+              symbol: stock.symbol,
+            });
+          }
+        } catch (error) {
+          logger.error(`处理股票${stock.symbol}数据失败`, {
+            error,
+            stockId: stock.id,
+            symbol: stock.symbol,
+          });
+        }
+
+        // 添加延迟以避免请求过快
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    } catch (error) {
+      logger.error(`获取股票数据失败`, error);
+    }
+  }
+
   async startMonitoring() {
     // 每5分钟执行一次监控任务
-    schedule.scheduleJob('*/5 9-15 * * 1-5', async () => {
+    schedule.scheduleJob('*/5 * * * 1-5', async () => {
+      // schedule.scheduleJob('*/2 * * * 1-5', async () => {
       const now = new Date();
       const hour = now.getHours();
       const minute = now.getMinutes();
@@ -395,7 +592,18 @@ export class MonitorScheduler {
         (timeValue >= 1300 && timeValue <= 1500)
       ) {
         console.log('执行 A 股市场监控...');
+        await this.fetchAndStoreStockData(['SH', 'SZ']);
         await this.monitorMarket(['SH', 'SZ']);
+      }
+
+      // A股收盘前计算 KDJ (14:50-14:55)
+      if (timeValue >= 1450 && timeValue <= 1500) {
+        console.log('开始执行 A 股每日 KDJ 计算任务');
+        try {
+          await this.calculateDailyKDJ(['SH', 'SZ']);
+        } catch (error) {
+          console.error('A股 KDJ 计算任务执行失败:', error);
+        }
       }
 
       // 港股市场监控 (9:30-12:00, 13:00-16:00)
@@ -404,84 +612,100 @@ export class MonitorScheduler {
         (timeValue >= 1300 && timeValue <= 1600)
       ) {
         console.log('执行港股市场监控...');
+        await this.fetchAndStoreStockData(['HK']);
         await this.monitorMarket(['HK']);
       }
-    });
-
-    // schedule.scheduleJob('*/1 * * * 1-5', async () => {
-    //   await this.monitorMarket(['HK']);
-    // });
-
-    // A股 KDJ 计算任务
-    schedule.scheduleJob('50,55 14 * * 1-5', async () => {
-      console.log('开始执行 A 股每日 KDJ 计算任务');
-      try {
-        await this.calculateDailyKDJ(['SH', 'SZ']);
-      } catch (error) {
-        console.error('A股 KDJ 计算任务执行失败:', error);
+      // 港股收盘前计算 KDJ (15:50-15:55)
+      if (timeValue >= 1550 && timeValue <= 1600) {
+        console.log('开始执行港股每日 KDJ 计算任务');
+        try {
+          await this.calculateDailyKDJ(['HK']);
+        } catch (error) {
+          console.error('港股 KDJ 计算任务执行失败:', error);
+        }
       }
-    });
 
-    // 港股 KDJ 计算任务
-    schedule.scheduleJob('50,55 15 * * 1-5', async () => {
-      console.log('开始执行港股每日 KDJ 计算任务');
-      try {
-        await this.calculateDailyKDJ(['HK']);
-      } catch (error) {
-        console.error('港股 KDJ 计算任务执行失败:', error);
+      // 美股市场监控 (21:30-04:00)
+      if (timeValue >= 2130 || timeValue <= 400) {
+        console.log('执行美股市场监控...');
+        await this.fetchAndStoreStockData(['US']);
+        await this.monitorMarket(['US']);
       }
     });
   }
 
   private async monitorMarket(markets: string[]) {
     try {
-      const activeMonitors = await prisma.monitor.findMany({
+      logger.info(`开始执行市场监控`, { markets });
+
+      // 获取常规监控配置（非KDJ类型）
+      const regularMonitors = await prisma.monitor.findMany({
         where: {
           isActive: true,
+          type: { not: 'KDJ_J' },
           stock: { market: { in: markets } },
         },
         include: { stock: true },
       });
 
-      const monitors: Monitor[] = activeMonitors.map(this.mapToMonitor);
+      // 获取KDJ类型监控配置
+      const kdjMonitors = await prisma.monitor.findMany({
+        where: {
+          isActive: true,
+          type: 'KDJ_J',
+          stock: { market: { in: markets } },
+        },
+        include: { stock: true },
+      });
 
-      // 过滤出非 KDJ 类型的监控
-      const regularMonitors = monitors.filter((m) => m.type !== 'KDJ_J');
+      // 转换类型
+      const monitorsToCheck: Monitor[] = [
+        ...regularMonitors.map(this.mapToMonitor),
+        ...(this.shouldCheckKDJ(markets)
+          ? kdjMonitors.map(this.mapToMonitor)
+          : []),
+      ];
 
-      // 对于 KDJ 类型的监控，只在特定时间执行
-      const kdjMonitors = monitors.filter((m) => m.type === 'KDJ_J');
-      if (kdjMonitors.length > 0) {
-        const now = new Date();
-        const hour = now.getHours();
-        const minute = now.getMinutes();
-
-        // 检查是否在收盘前10分钟或5分钟
-        const isCheckTime =
-          (markets.includes('HK') &&
-            hour === 15 &&
-            (minute === 50 || minute === 55)) ||
-          ((markets.includes('SH') || markets.includes('SZ')) &&
-            hour === 14 &&
-            (minute === 50 || minute === 55));
-
-        if (!isCheckTime) {
-          logger.info('跳过 KDJ 监控检查 - 不在指定时间', {
-            currentTime: `${hour}:${minute}`,
-            markets,
-          });
-          kdjMonitors.length = 0;
-        }
+      if (monitorsToCheck.length === 0) {
+        logger.info('没有需要执行的监控任务', { markets });
+        return;
       }
 
-      // 合并需要执行的监控
-      const monitorsToCheck = [...regularMonitors, ...kdjMonitors];
+      logger.info(`找到${monitorsToCheck.length}个监控任务`, {
+        markets,
+        regular: regularMonitors.length,
+        kdj: kdjMonitors.length,
+      });
 
+      // 并行执行监控检查
       await Promise.all(
-        monitorsToCheck.map((monitor) => this.checkIndicator(monitor)),
+        monitorsToCheck.map((monitor) =>
+          this.checkIndicator(monitor).catch((error) =>
+            logger.error(`监控任务执行异常: ${monitor.stock.symbol}`, error),
+          ),
+        ),
       );
     } catch (error) {
       logger.error(`市场监控任务执行失败`, error);
     }
+  }
+
+  private shouldCheckKDJ(markets: string[]): boolean {
+    const now = new Date();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+
+    // A股市场检查时间（14:50, 14:55）
+    if (markets.some((m) => ['SH', 'SZ'].includes(m))) {
+      return hour === 14 && (minute === 50 || minute === 55);
+    }
+
+    // 港股市场检查时间（15:50, 15:55）
+    if (markets.includes('HK')) {
+      return hour === 15 && (minute === 50 || minute === 55);
+    }
+
+    return false;
   }
 
   private mapToMonitor(dbMonitor: any): Monitor {

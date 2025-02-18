@@ -8,7 +8,7 @@ export interface StockData {
   changePercent: number;
   volume: number;
   marketCap: number;
-  lastUpdate: string;
+  updatedAt: string;
   kdj?: {
     k: number;
     d: number;

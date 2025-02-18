@@ -95,7 +95,7 @@ export const AlertForm = ({ stock, onClose }: AlertFormProps) => {
     <Card className='bg-card/5 backdrop-blur-lg border-white/10'>
       <CardHeader>
         <CardTitle>
-          {stock.symbol} {stock.nameCn}
+          {stock.symbol} {stock.name}
         </CardTitle>
       </CardHeader>
       <CardContent className='space-y-6'>

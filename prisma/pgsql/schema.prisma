@@ -1,0 +1,85 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Stock {
+  id          String       @id @default(cuid())
+  symbol      String       @unique
+  name        String
+  market      String
+  monitors    Monitor[]
+  kdjs        Kdj[]
+  quotes      Quote[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Monitor {
+  id            String         @id @default(cuid())
+  stockId       String
+  stock         Stock          @relation(fields: [stockId], references: [id])
+  type          String        // PRICE, VOLUME, CHANGE_PERCENT, KDJ_J
+  condition     String        // ABOVE, BELOW
+  threshold     Float         // 阈值
+  isActive      Boolean       @default(true)
+  lastNotifiedAt DateTime?
+  notifications Notification[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  monitorId String
+  monitor   Monitor  @relation(fields: [monitorId], references: [id])
+  message   String
+  status    String   // PENDING, SENT, FAILED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Quote {
+  id            String   @id @default(cuid())
+  stockId       String
+  stock         Stock    @relation(fields: [stockId], references: [id])
+  price         Float
+  volume        Float
+  changePercent Float
+  dailyKdj      Kdj?    @relation("DailyKdj", fields: [dailyKdjId], references: [id])
+  dailyKdjId    String?
+  weeklyKdj     Kdj?    @relation("WeeklyKdj", fields: [weeklyKdjId], references: [id])
+  weeklyKdjId   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([stockId])
+  @@index([stockId])
+  @@index([createdAt])
+}
+
+model Kdj {
+  id            String       @id @default(cuid())
+  stockId       String
+  stock         Stock        @relation(fields: [stockId], references: [id])
+  k             Float
+  d             Float
+  j             Float
+  type          String      // DAILY or WEEKLY
+  dailyQuotes   Quote[] @relation("DailyKdj")
+  weeklyQuotes  Quote[] @relation("WeeklyKdj")
+  date          DateTime     @default(now())
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([stockId, type], map: "stockId_type")
+  @@index([stockId, date])
+  @@index([type])
+}

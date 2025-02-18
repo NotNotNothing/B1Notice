@@ -47,13 +47,7 @@ export default function Home() {
         </TabsList>
 
         <TabsContent value='stocks'>
-          {stocks.length === 0 ? (
-            <div className='flex justify-center items-center min-h-[200px]'>
-              <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900' />
-            </div>
-          ) : (
-            <StockList stocks={stocks} onStocksChange={fetchStocks} />
-          )}
+          <StockList stocks={stocks} onStocksChange={fetchStocks} />
         </TabsContent>
 
         <TabsContent value='alerts'>

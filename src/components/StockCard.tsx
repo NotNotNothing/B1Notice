@@ -2,6 +2,8 @@ import { StockData } from '../types/stock';
 import { ArrowUpIcon, ArrowDownIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Card } from '@/components/ui/card';
+import { format } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
 
 interface StockCardProps {
   data: StockData;
@@ -9,7 +11,7 @@ interface StockCardProps {
 }
 
 export const StockCard = ({ data, onClick }: StockCardProps) => {
-  const isPositive = data.changePercent >= 0;
+  const isPositive = (data.changePercent ?? 0) >= 0;
 
   return (
     <Card
@@ -24,7 +26,12 @@ export const StockCard = ({ data, onClick }: StockCardProps) => {
       <div className='flex justify-between items-center'>
         <div>
           <p className='text-sm text-gray-500'>{data.symbol}</p>
-          <h3 className='text-2xl font-semibold'>{data.nameCn}</h3>
+          <h3 className='text-2xl font-semibold'>{data.name}</h3>
+          {data.updatedAt && (
+            <p className='text-xs text-gray-400 mt-1'>
+              更新于: {format(new Date(data.updatedAt), 'MM-dd HH:mm:ss', { locale: zhCN })}
+            </p>
+          )}
         </div>
         <div
           className={cn(
@@ -35,7 +42,7 @@ export const StockCard = ({ data, onClick }: StockCardProps) => {
           )}
         >
           {isPositive ? <ArrowUpIcon size={14} /> : <ArrowDownIcon size={14} />}
-          {data.changePercent.toFixed(2)}%
+          {(data.changePercent ?? 0).toFixed(2)}%
         </div>
       </div>
 
@@ -48,7 +55,7 @@ export const StockCard = ({ data, onClick }: StockCardProps) => {
               isPositive ? 'text-red-600' : 'text-emerald-600',
             )}
           >
-            {data.price.toFixed(2)}
+            {(data.price ?? 0).toFixed(2)}
           </p>
         </div>
         <div className='flex gap-4'>
