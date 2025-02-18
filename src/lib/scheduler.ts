@@ -11,8 +11,7 @@ import { getLongBridgeClient } from '../server/longbridge/client';
 import schedule from 'node-schedule';
 import { LongBridgeClient } from '../server/longbridge/client';
 import { sendCanBuyMessageByPushDeer } from '@/server/pushdeer';
-import { info } from 'console';
-import { KDJ_TYPE } from '@/app/api/stocks/route';
+import { KDJ_TYPE } from '@/utils';
 
 // K线周期定义
 const KLINE_PERIOD = {

@@ -102,7 +102,7 @@ export class LongBridgeClient {
         changePercent,
         volume: Number(quote.volume),
         marketCap: Number(quote.postMarketQuote),
-        lastUpdate: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
         kdj: kdjResults[index]?.length
           ? {
               k: kdjResults[index][kdjResults[index].length - 1].k,

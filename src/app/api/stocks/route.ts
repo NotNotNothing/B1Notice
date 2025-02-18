@@ -2,11 +2,7 @@ import { NextResponse } from 'next/server';
 import { getLongBridgeClient } from '@/server/longbridge/client';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
-
-export const KDJ_TYPE = {
-  DAILY: 'DAILY',
-  WEEKLY: 'WEEKLY',
-} as const;
+import { KDJ_TYPE } from '@/utils';
 
 export async function GET(request: Request) {
   try {
@@ -171,7 +167,10 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('创建股票失败:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create stock' },
+      {
+        error:
+          error instanceof Error ? error.message : 'Failed to create stock',
+      },
       { status: 500 },
     );
   }
