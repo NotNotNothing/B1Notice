@@ -17,7 +17,7 @@ RUN npm install
 COPY . .
 
 # 生成 Prisma 客户端
-RUN npx prisma generate
+RUN npm run db:generate
 
 # 构建应用
 RUN npm run build
