@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = "postgresql://postgres:yofu2b9gb1kat1hi@notnotnothing-notnotnothing-db-ktt3h7:5432/postgres"
+  url      = "postgresql://postgres:yofu2b9gb1kat1hi@103.142.140.28:5432/postgres"
 }
 
 model Stock {
