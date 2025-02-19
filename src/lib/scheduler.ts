@@ -7,17 +7,11 @@
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
 import { prisma } from './prisma';
-import { getLongBridgeClient } from '../server/longbridge/client';
+import { getLongBridgeClient, KLINE_PERIOD } from '../server/longbridge/client';
 import schedule from 'node-schedule';
 import { LongBridgeClient } from '../server/longbridge/client';
 import { sendCanBuyMessageByPushDeer } from '@/server/pushdeer';
 import { KDJ_TYPE } from '@/utils';
-
-// K线周期定义
-const KLINE_PERIOD = {
-  DAY: 14,
-  WEEK: 6,
-} as const;
 
 interface Monitor {
   id: string;
@@ -576,7 +570,7 @@ export class MonitorScheduler {
 
   async startMonitoring() {
     // 每5分钟执行一次监控任务
-    schedule.scheduleJob('*/5 * * * 1-5', async () => {
+    schedule.scheduleJob('*/2 * * * 1-5', async () => {
       // schedule.scheduleJob('*/2 * * * 1-5', async () => {
       const now = new Date();
       const hour = now.getHours();
