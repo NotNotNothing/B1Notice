@@ -1,15 +1,6 @@
 import { Config, QuoteContext, SecurityQuote } from 'longport';
 import { KLine, KDJResult } from './types';
 import { StockData } from '../../types/stock';
-import redis from '../../lib/redis';
-
-const CACHE_EXPIRY = 60; // 缓存过期时间（秒）
-const CACHE_PREFIX = {
-  QUOTES: '1min:stock:quotes:',
-  KLINE: '1min:stock:kline:',
-  KDJ: '1min:stock:kdj:',
-  STATIC_INFO: '1min:stock:static:',
-};
 
 // K线周期定义
 export const KLINE_PERIOD = {
@@ -32,34 +23,17 @@ export class LongBridgeClient {
     return this.quoteContext;
   }
 
-  private async fetchStockStaticInfo(symbol: string) {
-    const ctx = await this.getQuoteContext();
-    const staticInfo = await ctx.staticInfo([symbol]);
-    if (staticInfo && staticInfo.length > 0) {
-      const info = staticInfo[0];
-      // 缓存静态信息
-      redis.setex(
-        CACHE_PREFIX.STATIC_INFO + symbol,
-        CACHE_EXPIRY,
-        JSON.stringify(info),
-      );
-      return info;
-    }
-    return null;
-  }
-
   private async getStockStaticInfo(symbol: string) {
     try {
-      // 尝试从缓存获取数据
-      const cached = await redis.get(CACHE_PREFIX.STATIC_INFO + symbol);
-      if (cached) {
-        return JSON.parse(cached);
+      const ctx = await this.getQuoteContext();
+      const staticInfo = await ctx.staticInfo([symbol]);
+      if (staticInfo && staticInfo.length > 0) {
+        return staticInfo[0];
       }
-      // 如果没有缓存数据，从 API 获取
-      return await this.fetchStockStaticInfo(symbol);
+      return null;
     } catch (error) {
       console.error('Error fetching stock static info:', error);
-      return await this.fetchStockStaticInfo(symbol);
+      return null;
     }
   }
 
@@ -92,7 +66,7 @@ export class LongBridgeClient {
       const changePercent = (change / prevClose) * 100;
       const staticInfo = staticInfoResults[index];
 
-      const stockData: StockData = {
+      return {
         id: `${symbols[index]}_${new Date().toISOString()}`,
         symbol: symbols[index],
         name: quote.symbol,
@@ -118,54 +92,15 @@ export class LongBridgeClient {
             }
           : undefined,
       };
-
-      // 尝试缓存数据
-      redis.setex(
-        CACHE_PREFIX.QUOTES + stockData.symbol,
-        CACHE_EXPIRY,
-        JSON.stringify(stockData),
-      );
-
-      return stockData;
     });
   }
 
   async getStockQuotes(symbols: string[]): Promise<StockData[]> {
     try {
-      // 尝试从缓存获取数据
-      const cachedData = await Promise.all(
-        symbols.map(async (symbol) => {
-          const cached = await redis.get(CACHE_PREFIX.QUOTES + symbol);
-          return cached ? JSON.parse(cached) : null;
-        }),
-      );
-
-      // 如果所有数据都在缓存中，直接返回
-      if (cachedData.every((data) => data !== null)) {
-        return cachedData as StockData[];
-      }
-
-      // 如果有部分数据在缓存中
-      if (cachedData.some((data) => data !== null)) {
-        const uncachedSymbols = symbols.filter(
-          (symbol, index) => !cachedData[index],
-        );
-        const freshData = await this.fetchStockQuotes(uncachedSymbols);
-
-        // 合并缓存数据和新数据
-        return symbols.map((symbol, index) => {
-          const cached = cachedData[index];
-          if (cached) return cached;
-          return freshData.find((data) => data.symbol === symbol)!;
-        });
-      }
-
-      // 如果没有缓存数据，直接获取所有数据
       return await this.fetchStockQuotes(symbols);
     } catch (error) {
       console.error('Error fetching stock quotes:', error);
-      // 如果发生错误，尝试直接从 API 获取数据
-      return await this.fetchStockQuotes(symbols);
+      throw error;
     }
   }
 
@@ -175,8 +110,6 @@ export class LongBridgeClient {
     period: number = KLINE_PERIOD.DAY,
   ): Promise<KLine[]> {
     const ctx = await this.getQuoteContext();
-
-    // 直接使用传入的period参数，不需要特殊处理count
     const response = await ctx.candlesticks(symbol, period, count, 0);
     console.log(
       `[K线数据] 获取到${symbol}的K线数据，周期: ${
@@ -204,32 +137,19 @@ export class LongBridgeClient {
       });
     }
 
-    // 尝试缓存数据
-    const cacheKey = `${CACHE_PREFIX.KLINE}${symbol}:${count}:${period}`;
-    redis.setex(cacheKey, CACHE_EXPIRY, JSON.stringify(kLineData));
-
     return kLineData;
   }
 
   async getKLineData(
     symbol: string,
     count: number = 100,
-    period: number = KLINE_PERIOD.DAY, // 默认日线
+    period: number = KLINE_PERIOD.DAY,
   ): Promise<KLine[]> {
     try {
-      // 尝试从缓存获取数据
-      const cacheKey = `${CACHE_PREFIX.KLINE}${symbol}:${count}:${period}`;
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        return JSON.parse(cached);
-      }
-
-      // 如果没有缓存数据，从 API 获取
       return await this.fetchKLineData(symbol, count, period);
     } catch (error) {
       console.error('Error fetching K-line data:', error);
-      // 如果发生错误，直接从 API 获取数据
-      return await this.fetchKLineData(symbol, count, period);
+      throw error;
     }
   }
 
@@ -276,7 +196,7 @@ export class LongBridgeClient {
     const period = 9;
     try {
       // 增加获取的K线数量以确保计算准确性（周线需要更长的历史数据）
-      const kLineData = await this.getKLineData(symbol, 200, klinePeriod); // 从100调整为200
+      const kLineData = await this.getKLineData(symbol, 200, klinePeriod);
       const rsv = this.calculateRSV(kLineData, period);
 
       const result: KDJResult[] = [];

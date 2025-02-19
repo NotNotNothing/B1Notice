@@ -12,20 +12,8 @@ services:
       - LONGPORT_APP_SECRET=${LONGPORT_APP_SECRET}
       - LONGPORT_ACCESS_TOKEN=${LONGPORT_ACCESS_TOKEN}
       - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=redis://redis:6379
     networks:
       - app-network
-
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redis-data:/data
-    restart: unless-stopped
-    networks:
-      - app-network
-
-volumes:
-  redis-data:
 
 networks:
   app-network:
