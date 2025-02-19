@@ -7,6 +7,7 @@
     "dev:pg": "DB_TYPE=pgsql npm run dev:general",
     "dev:mysql": "DB_TYPE=mysql npm run dev:general",
     "dev:general": "npm run db:deploy && npm run db:generate && next dev",
+    "build:sqlite": "DB_TYPE=sqlite npm run db:generate && DB_TYPE=sqlite npm run db:deploy && next build",
     "build": "DB_TYPE=pgsql npm run db:generate && DB_TYPE=pgsql npm run db:deploy && next build",
     "build:without-migrate": "npm run db:generate && next build",
     "db:deploy": "prisma migrate deploy --schema ./prisma/$DB_TYPE/schema.prisma",

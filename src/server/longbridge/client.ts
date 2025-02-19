@@ -68,10 +68,10 @@ export class LongBridgeClient {
     const quotes = await ctx.quote(symbols);
     // 日线和周线都使用9个周期计算KDJ，只是基础数据不同
     const kdjPromises = symbols.map((symbol) =>
-      this.calculateKDJ(symbol, 9, KLINE_PERIOD.DAY),
+      this.calculateKDJ(symbol, KLINE_PERIOD.DAY),
     ); // 日线KDJ
     const weeklyKdjPromises = symbols.map((symbol) =>
-      this.calculateKDJ(symbol, 9, KLINE_PERIOD.WEEK),
+      this.calculateKDJ(symbol, KLINE_PERIOD.WEEK),
     ); // 周线KDJ
     const staticInfoPromises = symbols.map((symbol) =>
       this.getStockStaticInfo(symbol),

@@ -440,14 +440,12 @@ export class MonitorScheduler {
           // 获取日线KDJ
           const dailyKdj = await this.longBridgeClient.calculateKDJ(
             stock.symbol,
-            9,
             KLINE_PERIOD.DAY,
           );
 
           // 获取周线KDJ
           const weeklyKdj = await this.longBridgeClient.calculateKDJ(
             stock.symbol,
-            9,
             KLINE_PERIOD.WEEK,
           );
 

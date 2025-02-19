@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getLongBridgeClient } from '@/server/longbridge/client';
+import { getLongBridgeClient, KLINE_PERIOD } from '@/server/longbridge/client';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { KDJ_TYPE } from '@/utils';
@@ -79,10 +79,16 @@ export async function POST(request: Request) {
       }
 
       // 获取日线KDJ
-      const dailyKdj = await client.calculateKDJ(symbol.toUpperCase(), 9, 14); // 14 for DAY
+      const dailyKdj = await client.calculateKDJ(
+        symbol.toUpperCase(),
+        KLINE_PERIOD.DAY,
+      );
 
       // 获取周线KDJ
-      const weeklyKdj = await client.calculateKDJ(symbol.toUpperCase(), 9, 15); // 15 for WEEK
+      const weeklyKdj = await client.calculateKDJ(
+        symbol.toUpperCase(),
+        KLINE_PERIOD.WEEK,
+      );
 
       if (!dailyKdj.length || !weeklyKdj.length) {
         throw new Error('获取KDJ数据失败');
