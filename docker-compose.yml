@@ -7,6 +7,7 @@ services:
       - "3100:3100"
     restart: unless-stopped
     environment:
+      - TZ=Asia/Shanghai
       - LONGPORT_APP_KEY=${LONGPORT_APP_KEY}
       - LONGPORT_APP_SECRET=${LONGPORT_APP_SECRET}
       - LONGPORT_ACCESS_TOKEN=${LONGPORT_ACCESS_TOKEN}
