@@ -1,4 +1,7 @@
-import { getLongBridgeClient } from '../../../server/longbridge/client';
+import {
+  getLongBridgeClient,
+  KLINE_PERIOD,
+} from '../../../server/longbridge/client';
 import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
@@ -13,20 +16,30 @@ export async function GET(request: Request) {
   try {
     const client = getLongBridgeClient();
     const kdjResults = await client.calculateKDJ(symbol);
+    const weeklyKdjResults = await client.calculateKDJ(
+      symbol,
+      KLINE_PERIOD.WEEK,
+    );
 
     if (dateStr) {
       const targetDate = new Date(dateStr);
       const targetTimestamp = targetDate.getTime();
 
       // 找到最接近目标日期的结果
-      const closestResult = kdjResults.reduce((prev, curr) => {
-        return Math.abs(curr.timestamp - targetTimestamp) <
-          Math.abs(prev.timestamp - targetTimestamp)
-          ? curr
-          : prev;
+      return NextResponse.json({
+        daily: kdjResults.reduce((prev, curr) => {
+          return Math.abs(curr.timestamp - targetTimestamp) <
+            Math.abs(prev.timestamp - targetTimestamp)
+            ? curr
+            : prev;
+        }),
+        weekly: weeklyKdjResults.reduce((prev, curr) => {
+          return Math.abs(curr.timestamp - targetTimestamp) <
+            Math.abs(prev.timestamp - targetTimestamp)
+            ? curr
+            : prev;
+        }),
       });
-
-      return NextResponse.json(closestResult);
     }
 
     return NextResponse.json(kdjResults);

@@ -16,6 +16,7 @@ export const KDJCalculator = () => {
   const [date, setDate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<KDJResult | null>(null);
+  const [weeklyResult, setWeeklyResult] = useState<KDJResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const calculateKDJ = async () => {
@@ -40,7 +41,8 @@ export const KDJCalculator = () => {
         throw new Error(data.error || '计算KDJ时发生错误');
       }
 
-      setResult(data);
+      setResult(data.daily);
+      setWeeklyResult(data.weekly);
     } catch (err) {
       setError(err instanceof Error ? err.message : '计算KDJ时发生错误');
       setResult(null);
@@ -74,7 +76,7 @@ export const KDJCalculator = () => {
 
       {result && (
         <div className='space-y-2'>
-          <p className='text-sm text-gray-500'>计算结果</p>
+          <p className='text-sm text-gray-500'>日线KDJ 计算结果</p>
           <div className='grid grid-cols-3 gap-4'>
             <div>
               <p className='text-sm text-gray-500'>K值</p>
@@ -87,6 +89,27 @@ export const KDJCalculator = () => {
             <div>
               <p className='text-sm text-gray-500'>J值</p>
               <p className='text-2xl font-semibold'>{result.j.toFixed(2)}</p>
+            </div>
+          </div>
+          <p className='text-sm text-gray-500'>周线KDJ 计算结果</p>
+          <div className='grid grid-cols-3 gap-4'>
+            <div>
+              <p className='text-sm text-gray-500'>K值</p>
+              <p className='text-2xl font-semibold'>
+                {weeklyResult?.k.toFixed(2) || 'N/A'}
+              </p>
+            </div>
+            <div>
+              <p className='text-sm text-gray-500'>D值</p>
+              <p className='text-2xl font-semibold'>
+                {weeklyResult?.d.toFixed(2) || 'N/A'}
+              </p>
+            </div>
+            <div>
+              <p className='text-sm text-gray-500'>J值</p>
+              <p className='text-2xl font-semibold'>
+                {weeklyResult?.j.toFixed(2) || 'N/A'}
+              </p>
             </div>
           </div>
         </div>

@@ -1,6 +1,5 @@
 'use client';
 import { useStockStore } from '../store/useStockStore';
-import { Badge } from '@/components/ui/badge';
 import { useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { KDJCalculator } from '../components/KDJCalculator';

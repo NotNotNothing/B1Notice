@@ -12,7 +12,7 @@ const CACHE_PREFIX = {
 };
 
 // K线周期定义
-const KLINE_PERIOD = {
+export const KLINE_PERIOD = {
   DAY: 14, // Period.Day
   WEEK: 15, // Period.Week
 } as const;
@@ -253,13 +253,17 @@ export class LongBridgeClient {
 
   private calculateRSV(kLines: KLine[], period: number = 9): number[] {
     return kLines.map((_, index) => {
+      // 确保有足够的历史数据计算RSV
       if (index < period - 1) return 50;
 
-      const periodData = kLines.slice(index - period + 1, index + 1);
+      const startIndex = Math.max(0, index - period + 1);
+      const periodData = kLines.slice(startIndex, index + 1);
+
       const highestHigh = Math.max(...periodData.map((d) => d.high));
       const lowestLow = Math.min(...periodData.map((d) => d.low));
       const currentClose = kLines[index].close;
 
+      // 处理高低点相同的情况
       if (highestHigh === lowestLow) return 50;
       return ((currentClose - lowestLow) / (highestHigh - lowestLow)) * 100;
     });
@@ -267,11 +271,12 @@ export class LongBridgeClient {
 
   async calculateKDJ(
     symbol: string,
-    period: number = 9,
     klinePeriod: number = KLINE_PERIOD.DAY,
   ): Promise<KDJResult[]> {
+    const period = 9;
     try {
-      const kLineData = await this.getKLineData(symbol, undefined, klinePeriod);
+      // 增加获取的K线数量以确保计算准确性（周线需要更长的历史数据）
+      const kLineData = await this.getKLineData(symbol, 200, klinePeriod); // 从100调整为200
       const rsv = this.calculateRSV(kLineData, period);
 
       const result: KDJResult[] = [];
@@ -331,56 +336,6 @@ export class LongBridgeClient {
 
   async getStockInfo(symbol: string) {
     return this.getStockStaticInfo(symbol);
-  }
-
-  private async fetchWeeklyKLineData(
-    symbol: string,
-    count: number = 100,
-  ): Promise<KLine[]> {
-    const ctx = await this.getQuoteContext();
-    // 使用周期类型 6 表示周K线
-    const response = await ctx.candlesticks(symbol, 6, count, 0);
-
-    const kLineData = response.map((candle) => ({
-      close: candle.close.toNumber(),
-      high: candle.high.toNumber(),
-      low: candle.low.toNumber(),
-      timestamp: candle.timestamp.getTime(),
-    }));
-
-    // 缓存周K线数据
-    const cacheKey = `${CACHE_PREFIX.KLINE}weekly:${symbol}:${count}`;
-    redis.setex(cacheKey, CACHE_EXPIRY, JSON.stringify(kLineData));
-
-    return kLineData;
-  }
-
-  async getWeeklyKLineData(
-    symbol: string,
-    count: number = 100,
-  ): Promise<KLine[]> {
-    try {
-      // 尝试从缓存获取数据
-      const cacheKey = `${CACHE_PREFIX.KLINE}weekly:${symbol}:${count}`;
-      const cached = await redis.get(cacheKey);
-      if (cached) {
-        return JSON.parse(cached);
-      }
-
-      // 如果没有缓存数据，从 API 获取
-      return await this.fetchWeeklyKLineData(symbol, count);
-    } catch (error) {
-      console.error('Error fetching weekly K-line data:', error);
-      return await this.fetchWeeklyKLineData(symbol, count);
-    }
-  }
-
-  async calculateWeeklyKDJ(
-    symbol: string,
-    period: number = 9,
-  ): Promise<KDJResult[]> {
-    // 直接复用通用计算方法，指定周线周期
-    return this.calculateKDJ(symbol, period, KLINE_PERIOD.WEEK);
   }
 }
 
