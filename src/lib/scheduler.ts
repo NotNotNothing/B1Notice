@@ -584,7 +584,7 @@ export class MonitorScheduler {
       const hour = now.getHours();
       const minute = now.getMinutes();
       const timeValue = hour * 100 + minute; // 例如 9:30 => 930
-
+      console.log('当前时间：', timeValue);
       // A股市场监控 (9:30-11:30, 13:00-15:00)
       if (
         (timeValue >= 930 && timeValue <= 1130) ||
