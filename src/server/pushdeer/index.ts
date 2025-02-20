@@ -1,7 +1,7 @@
 // https://pushdeer.ftqq.com/message/push?pushkey=PDU325TwP28oGHHoy5yf20sByEeKxqHvJPMsAhC&text=%E6%83%B3%E8%A6%81%E6%8E%A8%E9%80%81%E7%9A%84%E6%96%87%E5%AD%97
 import axios from 'axios';
 
-const KEY = 'PDU73T4ktgkHAbtcZbJHXqhUJkXIzoIzW7xk8l';
+const KEY = process.env.PUSHDEER_KEY;
 
 enum EPushDeerType {
   MARKDOWN = 'markdown',

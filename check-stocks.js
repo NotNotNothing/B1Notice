@@ -1,1 +1,0 @@
-const { PrismaClient } = require("@prisma/client"); const prisma = new PrismaClient(); async function main() { const stocks = await prisma.stock.findMany(); console.log("Stocks in database:", stocks); } main().catch(console.error).finally(() => prisma.$disconnect());
