@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "start": "next start",
     "dev": "DB_TYPE=sqlite npm run dev:general",
     "dev:pg": "DB_TYPE=pgsql npm run dev:general",
     "dev:mysql": "DB_TYPE=mysql npm run dev:general",
