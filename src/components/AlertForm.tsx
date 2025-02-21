@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { AlertConfig, AlertType, type StockData } from '../types/stock';
+import { AlertType, type StockData } from '../types/stock';
+import { AlertConfig, CreateMonitorRequest, monitorToAlert } from '../types/monitor';
 import { useStockStore } from '../store/useStockStore';
 import {
   Card,
@@ -50,18 +51,20 @@ export const AlertForm = ({ stock, onClose }: AlertFormProps) => {
       setIsSubmitting(true);
 
       // 保存到数据库
+      const monitorRequest: CreateMonitorRequest = {
+        stockSymbol: stock.symbol,
+        type,
+        condition,
+        threshold: value,
+        isActive: enabled,
+      };
+
       const response = await fetch('/api/monitors', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          stockSymbol: stock.symbol,
-          type,
-          condition,
-          threshold: value,
-          isActive: enabled,
-        }),
+        body: JSON.stringify(monitorRequest),
       });
 
       if (!response.ok) {
@@ -71,14 +74,7 @@ export const AlertForm = ({ stock, onClose }: AlertFormProps) => {
       const data = await response.json();
 
       // 更新本地状态
-      const alert: AlertConfig = {
-        id: data.id,
-        symbol: stock.symbol,
-        type,
-        condition,
-        value,
-        enabled,
-      };
+      const alert = monitorToAlert(data);
       addAlert(alert);
 
       toast.success('监控规则已保存');

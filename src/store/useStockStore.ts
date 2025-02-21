@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { StockData } from '@/types/stock';
-import { AlertConfig } from '@/types/alert';
+import { AlertConfig } from '@/types/monitor';
 import { toast } from 'sonner';
 
 interface StockStore {
