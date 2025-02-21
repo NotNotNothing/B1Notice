@@ -43,14 +43,19 @@ export const StockList = ({ stocks, onStocksChange }: StockListProps) => {
     try {
       setIsAddingStock(true);
 
+      // 检查股票代码是否包含市场后缀
+      const symbolParts = newStockSymbol.split('.');
+      const symbol = symbolParts[0];
+      const market = symbolParts.length > 1 ? symbolParts[1].toUpperCase() : newStockMarket;
+
       const response = await fetch('/api/stocks', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          symbol: `${newStockSymbol}.${newStockMarket}`,
-          market: newStockMarket,
+          symbol: `${symbol}.${market}`,
+          market: market,
         }),
       });
 
@@ -59,13 +64,13 @@ export const StockList = ({ stocks, onStocksChange }: StockListProps) => {
       }
 
       toast.success('添加股票成功');
-      setIsAddingStock(false);
       setShowAddStockDialog(false);
-
       setNewStockSymbol('');
       onStocksChange();
     } catch (error) {
       toast.error('添加股票失败');
+    } finally {
+      setIsAddingStock(false);
     }
   };
 
