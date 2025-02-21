@@ -104,4 +104,10 @@ export const authOptions: NextAuthOptions = {
 };
 
 const handler = NextAuth(authOptions);
-export { handler as GET, handler as POST };
+
+// 使用 Next.js Edge Runtime
+export const runtime = 'edge';
+
+// 导出符合 Next.js App Router 规范的处理函数
+export const GET = handler;
+export const POST = handler;
