@@ -51,6 +51,7 @@ export class MonitorScheduler {
 
   constructor() {
     this.longBridgeClient = getLongBridgeClient();
+    this.fetchAndStoreStockData(['SH', 'SZ', 'HK', 'US']);
   }
 
   private async checkPrice(symbol: string): Promise<number | null> {
