@@ -130,8 +130,10 @@ export const StockList = ({ stocks, onStocksChange }: StockListProps) => {
       </div>
 
       {stocks.length === 0 ? (
-        <div className='flex justify-center items-center min-h-[200px]'>
-          <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900' />
+        <div className='flex flex-col justify-center items-center min-h-[200px]'>
+          <h3 className='text-lg font-semibold text-gray-500'>
+            请添加股票
+          </h3>
         </div>
       ) : (
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>

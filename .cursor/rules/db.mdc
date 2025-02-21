@@ -1,0 +1,10 @@
+---
+description: 
+globs: 
+---
+
+# 本地开发时，数据库操作需要指定sqlite
+
+```
+npx prisma generate --schema=./prisma/sqlite/schema.prisma
+```

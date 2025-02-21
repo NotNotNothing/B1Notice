@@ -3,10 +3,20 @@ import { getLongBridgeClient, KLINE_PERIOD } from '@/server/longbridge/client';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { KDJ_TYPE } from '@/utils';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../auth/[...nextauth]/route';
 
 export async function GET(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: '未登录' }, { status: 401 });
+    }
+
     const stocks = await prisma.stock.findMany({
+      where: {
+        userId: session.user.id,
+      },
       include: {
         quotes: {
           orderBy: {
@@ -58,17 +68,38 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: '未登录' }, { status: 401 });
+    }
+
     const { symbol, market } = await request.json();
     const client = getLongBridgeClient();
     const staticInfo = await client.getStockInfo(symbol.toUpperCase());
 
     if (staticInfo?.nameCn) {
+      // 检查是否已存在相同的股票
+      const existingStock = await prisma.stock.findFirst({
+        where: {
+          userId: session.user.id,
+          symbol: symbol.toUpperCase(),
+        },
+      });
+
+      if (existingStock) {
+        return NextResponse.json(
+          { error: '该股票已在您的监控列表中' },
+          { status: 400 }
+        );
+      }
+
       // 创建股票基本信息
       const stock = await prisma.stock.create({
         data: {
           symbol: symbol.toUpperCase(),
           name: staticInfo.nameCn,
           market,
+          userId: session.user.id,
         },
       });
 
@@ -184,6 +215,11 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: '未登录' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const symbol = searchParams.get('symbol');
 
@@ -194,8 +230,23 @@ export async function DELETE(request: Request) {
       );
     }
 
+    // 确保只能删除自己的股票
+    const stock = await prisma.stock.findFirst({
+      where: {
+        symbol,
+        userId: session.user.id,
+      },
+    });
+
+    if (!stock) {
+      return NextResponse.json(
+        { error: '未找到该股票或无权限删除' },
+        { status: 404 },
+      );
+    }
+
     await prisma.stock.delete({
-      where: { symbol },
+      where: { id: stock.id },
     });
 
     return NextResponse.json({ success: true });

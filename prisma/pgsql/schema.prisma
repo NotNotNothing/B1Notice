@@ -83,3 +83,13 @@ model Kdj {
   @@index([stockId, date])
   @@index([type])
 }
+
+model User {
+  id            String    @id @default(cuid())
+  username      String    @unique
+  name          String?
+  password      String
+  role          String    @default("USER")  // USER, ADMIN
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}

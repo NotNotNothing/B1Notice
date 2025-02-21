@@ -2,7 +2,7 @@
  * @Author: GodD6366 daichangchun6366@gmail.com
  * @Date: 2025-02-15 13:47:23
  * @LastEditors: GodD6366 daichangchun6366@gmail.com
- * @LastEditTime: 2025-02-15 13:47:45
+ * @LastEditTime: 2025-02-21 22:14:17
  * @FilePath: /B1Notice/b1notice/src/lib/scheduler.ts
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -12,6 +12,7 @@ import schedule from 'node-schedule';
 import { LongBridgeClient } from '../server/longbridge/client';
 import { sendCanBuyMessageByPushDeer } from '@/server/pushdeer';
 import { KDJ_TYPE } from '@/utils';
+import { isProd } from './utils';
 
 interface Monitor {
   id: string;
@@ -203,7 +204,10 @@ export class MonitorScheduler {
       // 检查最后通知时间
       const monitorData = await prisma.monitor.findUnique({
         where: { id: monitor.id },
-        select: { lastNotifiedAt: true },
+        select: {
+          lastNotifiedAt: true,
+          userId: true,
+        },
       });
 
       const message = this.generateNotificationMessage(monitor, value);
@@ -224,14 +228,19 @@ export class MonitorScheduler {
         }
       }
 
-      // TODO: 先直接发通知，不存队列了
-      // await prisma.notification.create({
-      //   data: {
-      //     monitorId: monitor.id,
-      //     message,
-      //     status: 'PENDING',
-      //   },
-      // });
+      // 获取用户的 pushDeerKey
+      const user = await prisma.user.findUnique({
+        where: { id: monitorData?.userId },
+        select: { pushDeerKey: true },
+      });
+
+      if (!user?.pushDeerKey) {
+        logger.info(`用户未配置 PushDeer Key，跳过推送通知`, {
+          userId: monitorData?.userId,
+          symbol: monitor.stock.symbol,
+        });
+        return;
+      }
 
       // 更新最后通知时间
       await prisma.monitor.update({
@@ -243,6 +252,7 @@ export class MonitorScheduler {
         monitor.stock.symbol,
         monitor.stock.name,
         value,
+        user.pushDeerKey,
       );
     } catch (error) {
       console.error('创建通知失败:', error);
@@ -571,7 +581,7 @@ export class MonitorScheduler {
 
   async startMonitoring() {
     // 每5分钟执行一次监控任务
-    schedule.scheduleJob('*/2 * * * 1-5', async () => {
+    schedule.scheduleJob(isProd ? '*/5 * * * 1-5' : '0 * * * 1-5', async () => {
       // schedule.scheduleJob('*/2 * * * 1-5', async () => {
       const now = new Date();
       const hour = now.getHours();

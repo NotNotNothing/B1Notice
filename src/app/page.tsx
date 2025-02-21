@@ -1,16 +1,19 @@
 'use client';
 import { useStockStore } from '../store/useStockStore';
 import { useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { KDJCalculator } from '../components/KDJCalculator';
 import { StockList } from '../components/StockList';
 import { AlertPanel } from '../components/AlertPanel';
 import { Button } from '@/components/ui/button';
 import { ArrowUpDown } from 'lucide-react';
+import { UserSettings } from '@/components/UserSettings';
 
 export default function Home() {
   const { stocks, fetchStocks, isKDJDescending, toggleSortByKDJ } =
     useStockStore();
+  const { data: session } = useSession();
 
   useEffect(() => {
     fetchStocks();
@@ -35,6 +38,9 @@ export default function Home() {
             <ArrowUpDown className='h-4 w-4' />
             {isKDJDescending ? 'KDJ降序' : 'KDJ升序'}
           </Button>
+          {session?.user && (
+            <UserSettings username={session.user.username} />
+          )}
         </div>
       </div>
 
@@ -42,7 +48,7 @@ export default function Home() {
         <TabsList>
           <TabsTrigger value='stocks'>股票列表</TabsTrigger>
           <TabsTrigger value='alerts'>买点提醒</TabsTrigger>
-          <TabsTrigger value='kdj'>KDJ计算</TabsTrigger>
+          {/* <TabsTrigger value='kdj'>KDJ计算</TabsTrigger> */}
         </TabsList>
 
         <TabsContent value='stocks'>
@@ -53,9 +59,9 @@ export default function Home() {
           <AlertPanel stocks={stocks} />
         </TabsContent>
 
-        <TabsContent value='kdj'>
+        {/* <TabsContent value='kdj'>
           <KDJCalculator />
-        </TabsContent>
+        </TabsContent> */}
       </Tabs>
     </main>
   );

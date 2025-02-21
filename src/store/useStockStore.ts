@@ -1,7 +1,9 @@
 import { create } from 'zustand';
-import { AlertConfig, StockData } from '../types/stock';
+import { StockData } from '@/types/stock';
+import { AlertConfig } from '@/types/alert';
+import { toast } from 'sonner';
 
-type StockStore = {
+interface StockStore {
   stocks: StockData[];
   alerts: AlertConfig[];
   loading: boolean;
@@ -13,7 +15,7 @@ type StockStore = {
   toggleAlert: (id: string) => void;
   toggleSortByKDJ: () => void;
   removeStock: (symbol: string) => void;
-};
+}
 
 // 曼城阵容
 // const symbols = [
@@ -44,7 +46,8 @@ export const useStockStore = create<StockStore>((set) => ({
     try {
       const response = await fetch('/api/stocks');
       if (!response.ok) {
-        throw new Error('Network response was not ok');
+        const data = await response.json();
+        throw new Error(data.error || '获取股票数据失败');
       }
       const stocksData = await response.json();
       set((state) => {
@@ -55,11 +58,16 @@ export const useStockStore = create<StockStore>((set) => ({
             return (a.kdj?.j || 0) - (b.kdj?.j || 0); // 升序：小 -> 大
           }
         });
-        return { stocks: sortedStocks, loading: false };
+        return { stocks: sortedStocks, loading: false, error: null };
       });
     } catch (error) {
-      set({ error: '获取股票数据失败', loading: false });
-      console.error('获取股票数据失败:', error);
+      const errorMessage = error instanceof Error ? error.message : '获取股票数据失败';
+      set({ error: errorMessage, loading: false });
+      toast.error(errorMessage);
+      // 如果是未登录错误，重定向到登录页
+      if (errorMessage === '未登录') {
+        window.location.href = '/login';
+      }
     }
   },
   addAlert: (alert: AlertConfig) =>

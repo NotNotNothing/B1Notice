@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../auth/[...nextauth]/route';
 
 export async function POST(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: '未登录' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { stockSymbol, type, condition, threshold, isActive } = body;
 
@@ -10,6 +17,7 @@ export async function POST(request: Request) {
     const stock = await prisma.stock.findFirst({
       where: {
         symbol: stockSymbol,
+        userId: session.user.id,
       },
     });
 
@@ -24,6 +32,7 @@ export async function POST(request: Request) {
     const monitor = await prisma.monitor.create({
       data: {
         stockId: stock.id,
+        userId: session.user.id,
         type,
         condition,
         threshold,
@@ -40,6 +49,11 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: '未登录' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const stockSymbol = searchParams.get('stockSymbol');
 
@@ -47,9 +61,13 @@ export async function GET(request: Request) {
       ? {
           stock: {
             symbol: stockSymbol,
+            userId: session.user.id,
           },
+          userId: session.user.id,
         }
-      : {};
+      : {
+          userId: session.user.id,
+        };
 
     const monitors = await prisma.monitor.findMany({
       where: whereClause,
@@ -82,11 +100,31 @@ export async function GET(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: '未登录' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
     if (!id) {
       return NextResponse.json({ error: '缺少监控规则ID' }, { status: 400 });
+    }
+
+    // 确保只能删除自己的监控规则
+    const monitor = await prisma.monitor.findFirst({
+      where: {
+        id,
+        userId: session.user.id,
+      },
+    });
+
+    if (!monitor) {
+      return NextResponse.json(
+        { error: '未找到该监控规则或无权限删除' },
+        { status: 404 },
+      );
     }
 
     await prisma.monitor.delete({
@@ -104,6 +142,11 @@ export async function DELETE(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: '未登录' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { id, isActive } = body;
 
@@ -111,7 +154,22 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: '缺少监控规则ID' }, { status: 400 });
     }
 
-    const monitor = await prisma.monitor.update({
+    // 确保只能更新自己的监控规则
+    const monitor = await prisma.monitor.findFirst({
+      where: {
+        id,
+        userId: session.user.id,
+      },
+    });
+
+    if (!monitor) {
+      return NextResponse.json(
+        { error: '未找到该监控规则或无权限修改' },
+        { status: 404 },
+      );
+    }
+
+    const updatedMonitor = await prisma.monitor.update({
       where: {
         id,
       },
@@ -120,7 +178,7 @@ export async function PATCH(request: Request) {
       },
     });
 
-    return NextResponse.json(monitor);
+    return NextResponse.json(updatedMonitor);
   } catch (error) {
     console.error('更新监控规则失败:', error);
     return NextResponse.json({ error: '更新监控规则失败' }, { status: 500 });
