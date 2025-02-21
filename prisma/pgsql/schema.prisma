@@ -15,17 +15,24 @@ model Stock {
   symbol      String       @unique
   name        String
   market      String
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
   monitors    Monitor[]
   kdjs        Kdj[]
   quotes      Quote[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+
+  @@unique([userId, symbol])
+  @@index([userId])
 }
 
 model Monitor {
   id            String         @id @default(cuid())
   stockId       String
   stock         Stock          @relation(fields: [stockId], references: [id])
+  userId        String
+  user          User           @relation(fields: [userId], references: [id])
   type          String        // PRICE, VOLUME, CHANGE_PERCENT, KDJ_J
   condition     String        // ABOVE, BELOW
   threshold     Float         // 阈值
@@ -34,6 +41,8 @@ model Monitor {
   notifications Notification[]
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+
+  @@index([userId])
 }
 
 model Notification {
@@ -90,6 +99,9 @@ model User {
   name          String?
   password      String
   role          String    @default("USER")  // USER, ADMIN
+  pushDeerKey   String?   // PushDeer 推送 key
+  stocks        Stock[]
+  monitors      Monitor[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
