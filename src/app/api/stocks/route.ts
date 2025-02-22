@@ -245,12 +245,49 @@ export async function DELETE(request: Request) {
       );
     }
 
-    await prisma.stock.delete({
-      where: { id: stock.id },
+    // Delete in the correct order to handle foreign key constraints
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete notifications related to monitors of this stock
+      await tx.notification.deleteMany({
+        where: {
+          monitor: {
+            stockId: stock.id
+          }
+        }
+      });
+
+      // 2. Delete monitors for this stock
+      await tx.monitor.deleteMany({
+        where: {
+          stockId: stock.id
+        }
+      });
+
+      // 3. Delete quotes for this stock (this will also handle KDJ relations)
+      await tx.quote.deleteMany({
+        where: {
+          stockId: stock.id
+        }
+      });
+
+      // 4. Delete KDJ records for this stock
+      await tx.kdj.deleteMany({
+        where: {
+          stockId: stock.id
+        }
+      });
+
+      // 5. Finally delete the stock
+      await tx.stock.delete({
+        where: {
+          id: stock.id
+        }
+      });
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error('Failed to delete stock:', error);
     return NextResponse.json(
       { error: 'Failed to delete stock' },
       { status: 500 },
