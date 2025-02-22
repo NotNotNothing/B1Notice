@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { DefaultSession } from "next-auth";
+import { PrismaAdapter } from '@auth/prisma-adapter';
 
 // 扩展 Session 和 JWT 类型
 declare module "next-auth" {
@@ -30,12 +31,13 @@ declare module "next-auth/jwt" {
 }
 
 export const authOptions: NextAuthOptions = {
+  adapter: PrismaAdapter(prisma) as any,
   providers: [
     CredentialsProvider({
-      name: "credentials",
+      name: "Credentials",
       credentials: {
-        username: { label: "用户名", type: "text" },
-        password: { label: "密码", type: "password" }
+        username: { label: "Username", type: "text" },
+        password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
         if (!credentials?.username || !credentials?.password) {
@@ -44,24 +46,28 @@ export const authOptions: NextAuthOptions = {
 
         const user = await prisma.user.findUnique({
           where: {
-            username: credentials.username
-          }
+            username: credentials.username,
+          },
         });
 
         if (!user) {
-          throw new Error("用户不存在");
+          throw new Error("用户名或密码错误");
         }
 
-        const isValid = await compare(credentials.password, user.password);
+        const isPasswordValid = await compare(
+          credentials.password,
+          user.password,
+        );
 
-        if (!isValid) {
-          throw new Error("密码错误");
+        if (!isPasswordValid) {
+          throw new Error("用户名或密码错误");
         }
 
         return {
           id: user.id,
           username: user.username,
-          role: user.role
+          name: user.name,
+          role: user.role,
         };
       }
     })
@@ -74,7 +80,7 @@ export const authOptions: NextAuthOptions = {
     signIn: "/login"
   },
   callbacks: {
-    async jwt({ token, user, account }) {
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
         token.username = user.username;
@@ -83,10 +89,10 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id;
-        session.user.username = token.username;
-        session.user.role = token.role;
+      if (token) {
+        session.user.id = token.id as string;
+        session.user.username = token.username as string;
+        session.user.role = token.role as string;
       }
       return session;
     }
