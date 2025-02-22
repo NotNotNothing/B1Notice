@@ -218,7 +218,7 @@ export function UserSettings({ username }: UserSettingsProps) {
                   </Label>
                   <Input
                     id='pushDeerKey'
-                    className='mt-2'
+                    className='mt-2 h-12 text-base'
                     value={pushDeerKey}
                     onChange={(e) => setPushDeerKey(e.target.value)}
                     placeholder='请输入 PushDeer Key'

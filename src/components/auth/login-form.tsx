@@ -45,7 +45,7 @@ export default function LoginForm() {
 
   return (
     <div className="w-full">
-      <form onSubmit={onSubmit} className="space-y-4">
+      <form onSubmit={onSubmit} className="space-y-6">
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="username">用户名</Label>
@@ -59,6 +59,7 @@ export default function LoginForm() {
               autoCorrect="off"
               disabled={isLoading}
               required
+              className="h-12 text-base"
             />
           </div>
           <div className="space-y-2">
@@ -71,27 +72,28 @@ export default function LoginForm() {
               autoComplete="current-password"
               disabled={isLoading}
               required
+              className="h-12 text-base"
             />
           </div>
-          <Button className="w-full" disabled={isLoading}>
+          <Button className="w-full h-12 text-base mt-2" disabled={isLoading}>
             {isLoading && (
-              <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
+              <Icons.spinner className="mr-2 h-5 w-5 animate-spin" />
             )}
             登录
           </Button>
         </div>
       </form>
-      <div className="relative my-6">
+      <div className="relative my-8">
         <div className="absolute inset-0 flex items-center">
           <span className="w-full border-t" />
         </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-2 text-muted-foreground">
+        <div className="relative flex justify-center text-sm">
+          <span className="bg-background px-6 text-muted-foreground">
             没有账号?
           </span>
         </div>
       </div>
-      <Button variant="outline" type="button" disabled={isLoading} asChild className="w-full">
+      <Button variant="outline" type="button" disabled={isLoading} asChild className="w-full h-12 text-base">
         <Link href="/register">注册</Link>
       </Button>
     </div>

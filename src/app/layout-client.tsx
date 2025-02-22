@@ -34,9 +34,11 @@ function AuthCheck({ children }: { children: React.ReactNode }) {
   }, [session, status, pathname, router]);
 
   if (status === 'loading') {
-    return <div className="flex items-center justify-center min-h-screen">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" />
-    </div>;
+    return (
+      <div className='flex items-center justify-center min-h-screen'>
+        <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900' />
+      </div>
+    );
   }
 
   return children;
@@ -48,14 +50,19 @@ export default function RootLayoutClient({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="zh-CN">
+    <html lang='zh-CN'>
+      <head>
+        <meta name='apple-mobile-web-app-capable' content='yes' />
+        <meta
+          name='viewport'
+          content='width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0,user-scalable=no'
+        />
+      </head>
       <body className={inter.className}>
         <SessionProvider>
-          <AuthCheck>
-            {children}
-          </AuthCheck>
+          <AuthCheck>{children}</AuthCheck>
         </SessionProvider>
-        <Toaster richColors position="top-right" />
+        <Toaster richColors position='top-right' />
       </body>
     </html>
   );
