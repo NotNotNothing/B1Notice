@@ -32,6 +32,7 @@ interface UserSettingsProps {
 export function UserSettings({ username }: UserSettingsProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isTestingPush, setIsTestingPush] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -119,6 +120,37 @@ export function UserSettings({ username }: UserSettingsProps) {
       );
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleTestPushDeer = async () => {
+    if (!pushDeerKey) {
+      toast.error('请先输入 PushDeer Key');
+      return;
+    }
+
+    setIsTestingPush(true);
+    try {
+      const response = await fetch('/api/user/pushdeer/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          pushDeerKey,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '测试推送失败');
+      }
+
+      toast.success('测试推送发送成功，请查看手机通知');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '测试推送失败');
+    } finally {
+      setIsTestingPush(false);
     }
   };
 
@@ -224,12 +256,23 @@ export function UserSettings({ username }: UserSettingsProps) {
                     placeholder='请输入 PushDeer Key'
                   />
                 </div>
-                <Button
-                  onClick={handleUpdatePushDeerKey}
-                  disabled={isLoading || !pushDeerKey}
-                >
-                  更新 PushDeer Key
-                </Button>
+                <div className='flex gap-2'>
+                  <Button
+                    onClick={handleUpdatePushDeerKey}
+                    disabled={isLoading || !pushDeerKey}
+                    className='flex-1'
+                  >
+                    更新 PushDeer Key
+                  </Button>
+                  <Button
+                    onClick={handleTestPushDeer}
+                    disabled={isTestingPush || !pushDeerKey}
+                    variant="secondary"
+                    className='flex-1'
+                  >
+                    {isTestingPush ? '发送中...' : '测试推送'}
+                  </Button>
+                </div>
               </div>
             </div>
           </DialogContent>
