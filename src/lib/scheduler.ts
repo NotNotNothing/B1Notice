@@ -581,7 +581,7 @@ export class MonitorScheduler {
 
   async startMonitoring() {
     // 每5分钟执行一次监控任务
-    schedule.scheduleJob(isProd ? '*/5 * * * 1-5' : '0 * * * 1-5', async () => {
+    schedule.scheduleJob('*/5 * * * 1-5', async () => {
       // schedule.scheduleJob('*/2 * * * 1-5', async () => {
       const now = new Date();
       const hour = now.getHours();
