@@ -93,37 +93,15 @@ export async function POST(request: Request) {
         );
       }
 
-      // 查找是否已有相同symbol的股票(可能是其他用户添加的)
-      const existingGlobalStock = await prisma.stock.findUnique({
-        where: {
+      // 创建股票基本信息
+      const stock = await prisma.stock.create({
+        data: {
           symbol: symbol.toUpperCase(),
+          name: staticInfo.nameCn,
+          market,
+          userId: session.user.id,
         },
       });
-
-      // 创建股票基本信息
-      let stock;
-
-      if (existingGlobalStock) {
-        // 如果全局已存在此股票，为当前用户创建一个新关联
-        stock = await prisma.stock.create({
-          data: {
-            symbol: `${symbol.toUpperCase()}_${session.user.id}`, // 使用用户ID创建唯一symbol
-            name: staticInfo.nameCn,
-            market,
-            userId: session.user.id,
-          },
-        });
-      } else {
-        // 正常创建股票
-        stock = await prisma.stock.create({
-          data: {
-            symbol: symbol.toUpperCase(),
-            name: staticInfo.nameCn,
-            market,
-            userId: session.user.id,
-          },
-        });
-      }
 
       // 获取股票报价
       const quote = await client.getQuote(symbol.toUpperCase());
