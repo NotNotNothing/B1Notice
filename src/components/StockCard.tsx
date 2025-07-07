@@ -12,15 +12,23 @@ interface StockCardProps {
 
 export const StockCard = ({ data, onClick }: StockCardProps) => {
   const isPositive = (data.changePercent ?? 0) >= 0;
+  
+  const getBackgroundColor = () => {
+    if (data.bbi?.aboveBBIConsecutiveDays) {
+      return 'bg-red-50/80 backdrop-blur-sm';
+    } else if (data.bbi?.belowBBIConsecutiveDays) {
+      return 'bg-emerald-50/80 backdrop-blur-sm';
+    } else {
+      return 'bg-blue-50/80 backdrop-blur-sm';
+    }
+  };
 
   return (
     <Card
       onClick={onClick}
       className={cn(
         'p-6 hover:scale-[1.02] transition-transform duration-300 cursor-pointer space-y-4 border-none',
-        isPositive
-          ? 'bg-red-50/80 backdrop-blur-sm'
-          : 'bg-emerald-50/80 backdrop-blur-sm',
+        getBackgroundColor(),
       )}
     >
       <div className='flex justify-between items-center'>
@@ -29,7 +37,10 @@ export const StockCard = ({ data, onClick }: StockCardProps) => {
           <h3 className='text-2xl font-semibold'>{data.name}</h3>
           {data.updatedAt && (
             <p className='text-xs text-gray-400 mt-1'>
-              更新于: {format(new Date(data.updatedAt), 'MM-dd HH:mm:ss', { locale: zhCN })}
+              更新于:{' '}
+              {format(new Date(data.updatedAt), 'MM-dd HH:mm:ss', {
+                locale: zhCN,
+              })}
             </p>
           )}
         </div>
@@ -93,7 +104,9 @@ export const StockCard = ({ data, onClick }: StockCardProps) => {
               <p
                 className={cn(
                   'text-2xl font-semibold',
-                  data.price && data.price > data.bbi.bbi ? 'text-red-600' : 'text-emerald-600',
+                  data.price && data.price > data.bbi.bbi
+                    ? 'text-red-600'
+                    : 'text-emerald-600',
                 )}
               >
                 {data.bbi.bbi.toFixed(2)}
@@ -105,50 +118,96 @@ export const StockCard = ({ data, onClick }: StockCardProps) => {
 
       {/* BBI指标信息 */}
       {data.bbi && (
-        <div className={cn(
-          'mt-4 p-4 rounded-xl border transition-all duration-300',
-          data.bbi.aboveBBIConsecutiveDays || data.bbi.belowBBIConsecutiveDays
-            ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100'
-            : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-        )}>
+        <div
+          className={cn(
+            'mt-4 p-4 rounded-xl border transition-all duration-300',
+            data.bbi.aboveBBIConsecutiveDays
+              ? 'bg-gradient-to-r from-red-50 to-red-100 border-red-200'
+              : data.bbi.belowBBIConsecutiveDays
+              ? 'bg-gradient-to-r from-green-50 to-green-100 border-green-200'
+              : 'bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200',
+          )}
+        >
           {/* 连续状态显示 */}
-          {(data.bbi.aboveBBIConsecutiveDays || data.bbi.belowBBIConsecutiveDays) && (
+          {data.bbi.aboveBBIConsecutiveDays ||
+          data.bbi.belowBBIConsecutiveDays ? (
             <div className='flex items-center justify-between mb-3'>
               <div className='flex items-center gap-3'>
-                <div className='w-2 h-2 rounded-full bg-blue-400 animate-pulse'></div>
-                <span className='text-sm font-medium text-gray-700'>BBI趋势信号</span>
+                <div className={cn(
+                  'w-2 h-2 rounded-full animate-pulse',
+                  data.bbi.aboveBBIConsecutiveDays
+                    ? 'bg-red-400'
+                    : data.bbi.belowBBIConsecutiveDays
+                    ? 'bg-green-400'
+                    : 'bg-blue-400'
+                )}></div>
+                <span className='text-sm font-medium text-gray-700'>
+                  BBI趋势信号
+                </span>
               </div>
               <div className='flex items-center gap-2'>
                 {data.bbi.aboveBBIConsecutiveDays && (
                   <div className='flex items-center gap-2 bg-red-100 text-red-700 px-4 py-2 rounded-full text-sm font-medium border border-red-200 shadow-sm'>
                     <div className='w-2 h-2 bg-red-500 rounded-full'></div>
                     <span>连续2日高于BBI</span>
-                    <span className='text-xs bg-red-200 px-2 py-1 rounded-full'>多头信号</span>
+                    <span className='text-xs bg-red-200 px-2 py-1 rounded-full'>
+                      多头信号
+                    </span>
                   </div>
                 )}
                 {data.bbi.belowBBIConsecutiveDays && (
                   <div className='flex items-center gap-2 bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-medium border border-green-200 shadow-sm'>
                     <div className='w-2 h-2 bg-green-500 rounded-full'></div>
                     <span>连续2日低于BBI</span>
-                    <span className='text-xs bg-green-200 px-2 py-1 rounded-full'>空头信号</span>
+                    <span className='text-xs bg-green-200 px-2 py-1 rounded-full'>
+                      空头信号
+                    </span>
                   </div>
                 )}
               </div>
             </div>
+          ) : (
+            <div className='flex items-center justify-between mb-3'>
+              <div className='flex items-center gap-3'>
+                <div className='w-2 h-2 rounded-full bg-blue-400 animate-pulse'></div>
+                <span className='text-sm font-medium text-gray-700'>
+                  BBI趋势信号
+                </span>
+              </div>
+              <div className='flex items-center gap-2'>
+                <div className='flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-full text-sm font-medium border border-blue-200 shadow-sm'>
+                  <div className='w-2 h-2 bg-blue-500 rounded-full'></div>
+                  <span>暂无信号</span>
+                </div>
+              </div>
+            </div>
           )}
-          
+
           {/* BBI详细信息 */}
-          <div className={cn(
-            (data.bbi.aboveBBIConsecutiveDays || data.bbi.belowBBIConsecutiveDays) 
-              ? 'pt-3 border-t border-blue-100' 
-              : ''
-          )}>
+          <div
+            className={cn(
+              data.bbi.aboveBBIConsecutiveDays ||
+                data.bbi.belowBBIConsecutiveDays
+                ? data.bbi.aboveBBIConsecutiveDays
+                  ? 'pt-3 border-t border-red-200'
+                  : 'pt-3 border-t border-green-200'
+                : 'pt-3 border-t border-blue-200',
+            )}
+          >
             <div className='flex items-center justify-between mb-2'>
-              <span className='text-sm font-medium text-gray-700'>BBI多空指标</span>
-              <span className={cn(
-                'text-lg font-semibold',
-                data.price && data.price > data.bbi.bbi ? 'text-red-600' : 'text-green-600'
-              )}>
+              <span className='text-sm font-medium text-gray-700'>
+                BBI多空指标
+              </span>
+              <span
+                className={cn(
+                  'text-lg font-semibold',
+                  data.bbi.aboveBBIConsecutiveDays
+                    ? 'text-red-600'
+                    : data.bbi.belowBBIConsecutiveDays
+                    ? 'text-green-600'
+                    : 'text-blue-600',
+                )}
+              >
                 {data.bbi.bbi.toFixed(2)}
               </span>
             </div>
