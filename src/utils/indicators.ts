@@ -6,6 +6,14 @@ interface KDJResult {
   j: number;
 }
 
+interface BBIResult {
+  bbi: number;
+  ma3: number;
+  ma6: number;
+  ma12: number;
+  ma24: number;
+}
+
 export function calculateKDJ(
   klineData: KLineData[],
   period: number = 9,
@@ -40,5 +48,57 @@ export function calculateKDJ(
     k: Number(currentK.toFixed(2)),
     d: Number(currentD.toFixed(2)),
     j: Number(currentJ.toFixed(2)),
+  };
+}
+
+function calculateMA(data: KLineData[], period: number): number {
+  if (data.length < period) {
+    return 0;
+  }
+  
+  const sum = data.slice(-period).reduce((acc, item) => acc + item.close, 0);
+  return sum / period;
+}
+
+export function calculateBBI(klineData: KLineData[]): BBIResult {
+  if (klineData.length < 24) {
+    return { bbi: 0, ma3: 0, ma6: 0, ma12: 0, ma24: 0 };
+  }
+
+  const ma3 = calculateMA(klineData, 3);
+  const ma6 = calculateMA(klineData, 6);
+  const ma12 = calculateMA(klineData, 12);
+  const ma24 = calculateMA(klineData, 24);
+
+  const bbi = (ma3 + ma6 + ma12 + ma24) / 4;
+
+  return {
+    bbi: Number(bbi.toFixed(2)),
+    ma3: Number(ma3.toFixed(2)),
+    ma6: Number(ma6.toFixed(2)),
+    ma12: Number(ma12.toFixed(2)),
+    ma24: Number(ma24.toFixed(2)),
+  };
+}
+
+export function checkBBIConsecutiveDays(
+  historicalData: Array<{ close: number; bbi: number; date: string }>
+): {
+  aboveBBIConsecutiveDays: boolean;
+  belowBBIConsecutiveDays: boolean;
+} {
+  if (historicalData.length < 2) {
+    return { aboveBBIConsecutiveDays: false, belowBBIConsecutiveDays: false };
+  }
+
+  const latest = historicalData[historicalData.length - 1];
+  const previous = historicalData[historicalData.length - 2];
+
+  const aboveBBIConsecutiveDays = latest.close > latest.bbi && previous.close > previous.bbi;
+  const belowBBIConsecutiveDays = latest.close < latest.bbi && previous.close < previous.bbi;
+
+  return {
+    aboveBBIConsecutiveDays,
+    belowBBIConsecutiveDays,
   };
 }

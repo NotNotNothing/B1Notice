@@ -1,6 +1,7 @@
 import { Config, QuoteContext, SecurityQuote } from 'longport';
 import { KLine, KDJResult } from './types';
 import { StockData } from '../../types/stock';
+import { calculateBBI, checkBBIConsecutiveDays } from '../../utils/indicators';
 
 // K线周期定义
 export const KLINE_PERIOD = {
@@ -220,6 +221,61 @@ export class LongBridgeClient {
     } catch (error) {
       console.error('Error calculating KDJ:', error);
       throw error;
+    }
+  }
+
+  async calculateBBI(symbol: string): Promise<{
+    bbi: number;
+    ma3: number;
+    ma6: number;
+    ma12: number;
+    ma24: number;
+    aboveBBIConsecutiveDays: boolean;
+    belowBBIConsecutiveDays: boolean;
+  } | null> {
+    try {
+      // 获取足够的K线数据计算BBI（至少需要24天数据）
+      const kLineData = await this.getKLineData(symbol, 50, KLINE_PERIOD.DAY);
+      
+      if (kLineData.length < 24) {
+        console.warn(`K线数据不足，无法计算BBI: ${symbol}`);
+        return null;
+      }
+
+      // 转换数据格式
+      const formattedData = kLineData.map(k => ({
+        timestamp: new Date(k.timestamp).toISOString(),
+        open: k.close, // 简化处理，使用收盘价
+        high: k.high,
+        low: k.low,
+        close: k.close,
+        volume: 0, // BBI计算不需要成交量
+      }));
+
+      // 计算BBI指标
+      const bbiResult = calculateBBI(formattedData);
+      
+      // 准备检查连续两天的数据
+      const historicalData = kLineData.slice(-2).map((k, index) => {
+        const dayData = formattedData.slice(0, kLineData.indexOf(k) + 1);
+        const dayBBI = calculateBBI(dayData);
+        return {
+          close: k.close,
+          bbi: dayBBI.bbi,
+          date: new Date(k.timestamp).toISOString(),
+        };
+      }).filter(d => d.bbi > 0); // 过滤掉无效的BBI数据
+
+      // 检查连续两天状态
+      const consecutiveCheck = checkBBIConsecutiveDays(historicalData);
+
+      return {
+        ...bbiResult,
+        ...consecutiveCheck,
+      };
+    } catch (error) {
+      console.error('Error calculating BBI:', error);
+      return null;
     }
   }
 

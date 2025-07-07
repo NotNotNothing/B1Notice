@@ -12,7 +12,7 @@
     "build": "DB_TYPE=pgsql npm run db:generate && DB_TYPE=pgsql npm run db:deploy && next build",
     "build:without-migrate": "npm run db:generate && next build",
     "db:deploy": "prisma migrate deploy --schema ./prisma/$DB_TYPE/schema.prisma",
-    "db:generate": "prisma generate --schema ./prisma/$DB_TYPE/schema.prisma",
+    "db:generate": "prisma generate --schema ./prisma/sqlite/schema.prisma",
     "db:generate:prod": "dotenv -e .env.production -- prisma generate --schema ./prisma/pgsql/schema.prisma",
     "db:push": "DB_TYPE=sqlite npm run db:push:general",
     "db:push:pg": "DB_TYPE=pgsql npm run db:push:general",

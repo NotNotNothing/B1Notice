@@ -19,6 +19,15 @@ export interface StockData {
     d: number;
     j: number;
   };
+  bbi?: {
+    bbi: number;
+    ma3: number;
+    ma6: number;
+    ma12: number;
+    ma24: number;
+    aboveBBIConsecutiveDays: boolean;
+    belowBBIConsecutiveDays: boolean;
+  };
 }
 
 export interface KLineData {
@@ -30,7 +39,7 @@ export interface KLineData {
   volume: number;
 }
 
-export type AlertType = 'PRICE' | 'VOLUME' | 'CHANGE_PERCENT' | 'KDJ_J' | 'WEEKLY_KDJ_J';
+export type AlertType = 'PRICE' | 'VOLUME' | 'CHANGE_PERCENT' | 'KDJ_J' | 'WEEKLY_KDJ_J' | 'BBI_ABOVE_CONSECUTIVE' | 'BBI_BELOW_CONSECUTIVE';
 export type AlertCondition = 'ABOVE' | 'BELOW';
 
 export interface AlertConfig {

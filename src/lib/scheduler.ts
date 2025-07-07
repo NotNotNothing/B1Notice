@@ -454,6 +454,9 @@ export class MonitorScheduler {
             KLINE_PERIOD.WEEK,
           );
 
+          // 获取BBI指标
+          const bbiData = await this.longBridgeClient.calculateBBI(stock.symbol);
+
           if (!dailyKdj.length || !weeklyKdj.length) {
             logger.error(`获取股票${stock.symbol}KDJ数据失败`);
             continue;
@@ -526,6 +529,49 @@ export class MonitorScheduler {
               kdjId: latestWeeklyKdj.id,
             });
 
+            // 存储BBI指标（如果有数据）
+            let latestBbi = null;
+            if (bbiData) {
+              const existingBbi = await prisma.bbi.findFirst({
+                where: {
+                  stockId: stock.id,
+                },
+                select: { id: true },
+              });
+
+              latestBbi = await prisma.bbi.upsert({
+                where: {
+                  id: existingBbi?.id ?? 'new',
+                },
+                update: {
+                  bbi: bbiData.bbi,
+                  ma3: bbiData.ma3,
+                  ma6: bbiData.ma6,
+                  ma12: bbiData.ma12,
+                  ma24: bbiData.ma24,
+                  aboveBBIConsecutiveDays: bbiData.aboveBBIConsecutiveDays,
+                  belowBBIConsecutiveDays: bbiData.belowBBIConsecutiveDays,
+                  date: new Date(),
+                },
+                create: {
+                  stockId: stock.id,
+                  bbi: bbiData.bbi,
+                  ma3: bbiData.ma3,
+                  ma6: bbiData.ma6,
+                  ma12: bbiData.ma12,
+                  ma24: bbiData.ma24,
+                  aboveBBIConsecutiveDays: bbiData.aboveBBIConsecutiveDays,
+                  belowBBIConsecutiveDays: bbiData.belowBBIConsecutiveDays,
+                  date: new Date(),
+                },
+              });
+
+              logger.info(`成功存储BBI数据: ${stock.symbol}`, {
+                bbiId: latestBbi.id,
+                bbi: bbiData.bbi,
+              });
+            }
+
             // 存储股票报价
             const existingQuote = await prisma.quote.findFirst({
               where: {
@@ -544,6 +590,7 @@ export class MonitorScheduler {
                 changePercent: quote.changeRate,
                 dailyKdjId: latestDailyKdj.id,
                 weeklyKdjId: latestWeeklyKdj.id,
+                ...(latestBbi ? { bbiId: latestBbi.id } : {}),
               },
               create: {
                 stockId: stock.id,
@@ -552,6 +599,7 @@ export class MonitorScheduler {
                 changePercent: quote.changeRate,
                 dailyKdjId: latestDailyKdj.id,
                 weeklyKdjId: latestWeeklyKdj.id,
+                ...(latestBbi ? { bbiId: latestBbi.id } : {}),
               },
             });
 

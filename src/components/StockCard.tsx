@@ -87,8 +87,92 @@ export const StockCard = ({ data, onClick }: StockCardProps) => {
               </p>
             </div>
           )}
+          {data.bbi && (
+            <div>
+              <p className='text-sm text-gray-500'>BBI指标</p>
+              <p
+                className={cn(
+                  'text-2xl font-semibold',
+                  data.price && data.price > data.bbi.bbi ? 'text-red-600' : 'text-emerald-600',
+                )}
+              >
+                {data.bbi.bbi.toFixed(2)}
+              </p>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* BBI指标信息 */}
+      {data.bbi && (
+        <div className={cn(
+          'mt-4 p-4 rounded-xl border transition-all duration-300',
+          data.bbi.aboveBBIConsecutiveDays || data.bbi.belowBBIConsecutiveDays
+            ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-100'
+            : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+        )}>
+          {/* 连续状态显示 */}
+          {(data.bbi.aboveBBIConsecutiveDays || data.bbi.belowBBIConsecutiveDays) && (
+            <div className='flex items-center justify-between mb-3'>
+              <div className='flex items-center gap-3'>
+                <div className='w-2 h-2 rounded-full bg-blue-400 animate-pulse'></div>
+                <span className='text-sm font-medium text-gray-700'>BBI趋势信号</span>
+              </div>
+              <div className='flex items-center gap-2'>
+                {data.bbi.aboveBBIConsecutiveDays && (
+                  <div className='flex items-center gap-2 bg-red-100 text-red-700 px-4 py-2 rounded-full text-sm font-medium border border-red-200 shadow-sm'>
+                    <div className='w-2 h-2 bg-red-500 rounded-full'></div>
+                    <span>连续2日高于BBI</span>
+                    <span className='text-xs bg-red-200 px-2 py-1 rounded-full'>多头信号</span>
+                  </div>
+                )}
+                {data.bbi.belowBBIConsecutiveDays && (
+                  <div className='flex items-center gap-2 bg-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-medium border border-green-200 shadow-sm'>
+                    <div className='w-2 h-2 bg-green-500 rounded-full'></div>
+                    <span>连续2日低于BBI</span>
+                    <span className='text-xs bg-green-200 px-2 py-1 rounded-full'>空头信号</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {/* BBI详细信息 */}
+          <div className={cn(
+            (data.bbi.aboveBBIConsecutiveDays || data.bbi.belowBBIConsecutiveDays) 
+              ? 'pt-3 border-t border-blue-100' 
+              : ''
+          )}>
+            <div className='flex items-center justify-between mb-2'>
+              <span className='text-sm font-medium text-gray-700'>BBI多空指标</span>
+              <span className={cn(
+                'text-lg font-semibold',
+                data.price && data.price > data.bbi.bbi ? 'text-red-600' : 'text-green-600'
+              )}>
+                {data.bbi.bbi.toFixed(2)}
+              </span>
+            </div>
+            <div className='grid grid-cols-4 gap-4 text-xs text-gray-600'>
+              <div className='text-center'>
+                <div className='font-medium text-gray-800'>MA3</div>
+                <div className='mt-1'>{data.bbi.ma3.toFixed(2)}</div>
+              </div>
+              <div className='text-center'>
+                <div className='font-medium text-gray-800'>MA6</div>
+                <div className='mt-1'>{data.bbi.ma6.toFixed(2)}</div>
+              </div>
+              <div className='text-center'>
+                <div className='font-medium text-gray-800'>MA12</div>
+                <div className='mt-1'>{data.bbi.ma12.toFixed(2)}</div>
+              </div>
+              <div className='text-center'>
+                <div className='font-medium text-gray-800'>MA24</div>
+                <div className='mt-1'>{data.bbi.ma24.toFixed(2)}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* {data.kdj && (
         <>

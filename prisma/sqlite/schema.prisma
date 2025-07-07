@@ -19,6 +19,7 @@ model Stock {
   user        User           @relation(fields: [userId], references: [id])
   monitors    Monitor[]
   kdjs        Kdj[]
+  bbis        Bbi[]
   quotes      Quote[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -67,6 +68,8 @@ model Quote {
   dailyKdjId    String?
   weeklyKdj     Kdj?    @relation("WeeklyKdj", fields: [weeklyKdjId], references: [id])
   weeklyKdjId   String?
+  bbi           Bbi?    @relation(fields: [bbiId], references: [id])
+  bbiId         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -92,6 +95,26 @@ model Kdj {
   @@unique([stockId, type], map: "stockId_type")
   @@index([stockId, date])
   @@index([type])
+}
+
+model Bbi {
+  id                      String   @id @default(cuid())
+  stockId                 String
+  stock                   Stock    @relation(fields: [stockId], references: [id])
+  bbi                     Float
+  ma3                     Float
+  ma6                     Float
+  ma12                    Float
+  ma24                    Float
+  aboveBBIConsecutiveDays Boolean  @default(false)
+  belowBBIConsecutiveDays Boolean  @default(false)
+  quotes                  Quote[]
+  date                    DateTime @default(now())
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@unique([stockId])
+  @@index([stockId, date])
 }
 
 model User {

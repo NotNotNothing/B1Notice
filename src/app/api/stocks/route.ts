@@ -26,6 +26,7 @@ export async function GET(request: Request) {
           include: {
             dailyKdj: true,
             weeklyKdj: true,
+            bbi: true,
           },
         },
       } as Prisma.StockInclude,
@@ -53,6 +54,17 @@ export async function GET(request: Request) {
               k: latestQuote.weeklyKdj.k,
               d: latestQuote.weeklyKdj.d,
               j: latestQuote.weeklyKdj.j,
+            }
+          : undefined,
+        bbi: latestQuote?.bbi
+          ? {
+              bbi: latestQuote.bbi.bbi,
+              ma3: latestQuote.bbi.ma3,
+              ma6: latestQuote.bbi.ma6,
+              ma12: latestQuote.bbi.ma12,
+              ma24: latestQuote.bbi.ma24,
+              aboveBBIConsecutiveDays: latestQuote.bbi.aboveBBIConsecutiveDays,
+              belowBBIConsecutiveDays: latestQuote.bbi.belowBBIConsecutiveDays,
             }
           : undefined,
         updatedAt: latestQuote?.updatedAt,
@@ -121,6 +133,9 @@ export async function POST(request: Request) {
         KLINE_PERIOD.WEEK,
       );
 
+      // 获取BBI指标
+      const bbiData = await client.calculateBBI(symbol.toUpperCase());
+
       if (!dailyKdj.length || !weeklyKdj.length) {
         throw new Error('获取KDJ数据失败');
       }
@@ -157,6 +172,28 @@ export async function POST(request: Request) {
         } as Prisma.KdjCreateInput,
       });
 
+      // 存储BBI指标（如果有数据）
+      let latestBbi = null;
+      if (bbiData) {
+        latestBbi = await prisma.bbi.create({
+          data: {
+            stock: {
+              connect: {
+                id: stock.id,
+              },
+            },
+            bbi: bbiData.bbi,
+            ma3: bbiData.ma3,
+            ma6: bbiData.ma6,
+            ma12: bbiData.ma12,
+            ma24: bbiData.ma24,
+            aboveBBIConsecutiveDays: bbiData.aboveBBIConsecutiveDays,
+            belowBBIConsecutiveDays: bbiData.belowBBIConsecutiveDays,
+            date: new Date(),
+          } as Prisma.BbiCreateInput,
+        });
+      }
+
       // 存储股票报价
       const stockQuote = await prisma.quote.create({
         data: {
@@ -178,6 +215,13 @@ export async function POST(request: Request) {
               id: latestWeeklyKdj.id,
             },
           },
+          ...(latestBbi ? {
+            bbi: {
+              connect: {
+                id: latestBbi.id,
+              },
+            },
+          } : {}),
         } as Prisma.QuoteCreateInput,
       });
 
@@ -197,6 +241,17 @@ export async function POST(request: Request) {
           d: latestWeeklyKdj.d,
           j: latestWeeklyKdj.j,
         },
+        ...(bbiData ? {
+          bbi: {
+            bbi: bbiData.bbi,
+            ma3: bbiData.ma3,
+            ma6: bbiData.ma6,
+            ma12: bbiData.ma12,
+            ma24: bbiData.ma24,
+            aboveBBIConsecutiveDays: bbiData.aboveBBIConsecutiveDays,
+            belowBBIConsecutiveDays: bbiData.belowBBIConsecutiveDays,
+          },
+        } : {}),
       });
     }
 
@@ -277,7 +332,14 @@ export async function DELETE(request: Request) {
         }
       });
 
-      // 5. Finally delete the stock
+      // 5. Delete BBI records for this stock
+      await tx.bbi.deleteMany({
+        where: {
+          stockId: stock.id
+        }
+      });
+
+      // 6. Finally delete the stock
       await tx.stock.delete({
         where: {
           id: stock.id
