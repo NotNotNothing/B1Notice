@@ -86,19 +86,50 @@ export function checkBBIConsecutiveDays(
 ): {
   aboveBBIConsecutiveDays: boolean;
   belowBBIConsecutiveDays: boolean;
+  aboveBBIConsecutiveDaysCount: number;
+  belowBBIConsecutiveDaysCount: number;
 } {
   if (historicalData.length < 2) {
-    return { aboveBBIConsecutiveDays: false, belowBBIConsecutiveDays: false };
+    return { 
+      aboveBBIConsecutiveDays: false, 
+      belowBBIConsecutiveDays: false,
+      aboveBBIConsecutiveDaysCount: 0,
+      belowBBIConsecutiveDaysCount: 0
+    };
   }
 
-  const latest = historicalData[historicalData.length - 1];
-  const previous = historicalData[historicalData.length - 2];
+  let aboveBBIConsecutiveDaysCount = 0;
+  let belowBBIConsecutiveDaysCount = 0;
 
-  const aboveBBIConsecutiveDays = latest.close > latest.bbi && previous.close > previous.bbi;
-  const belowBBIConsecutiveDays = latest.close < latest.bbi && previous.close < previous.bbi;
+  // 从最新的数据开始向前计算连续天数
+  for (let i = historicalData.length - 1; i >= 0; i--) {
+    const current = historicalData[i];
+    
+    if (current.close > current.bbi) {
+      if (belowBBIConsecutiveDaysCount === 0) {
+        aboveBBIConsecutiveDaysCount++;
+      } else {
+        break; // 如果之前有低于BBI的天数，则中断高于BBI的连续计数
+      }
+    } else if (current.close < current.bbi) {
+      if (aboveBBIConsecutiveDaysCount === 0) {
+        belowBBIConsecutiveDaysCount++;
+      } else {
+        break; // 如果之前有高于BBI的天数，则中断低于BBI的连续计数
+      }
+    } else {
+      // 价格等于BBI，中断连续计数
+      break;
+    }
+  }
+
+  const aboveBBIConsecutiveDays = aboveBBIConsecutiveDaysCount >= 2;
+  const belowBBIConsecutiveDays = belowBBIConsecutiveDaysCount >= 2;
 
   return {
     aboveBBIConsecutiveDays,
     belowBBIConsecutiveDays,
+    aboveBBIConsecutiveDaysCount,
+    belowBBIConsecutiveDaysCount,
   };
 }

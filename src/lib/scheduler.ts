@@ -551,6 +551,8 @@ export class MonitorScheduler {
                   ma24: bbiData.ma24,
                   aboveBBIConsecutiveDays: bbiData.aboveBBIConsecutiveDays,
                   belowBBIConsecutiveDays: bbiData.belowBBIConsecutiveDays,
+                  aboveBBIConsecutiveDaysCount: bbiData.aboveBBIConsecutiveDaysCount,
+                  belowBBIConsecutiveDaysCount: bbiData.belowBBIConsecutiveDaysCount,
                   date: new Date(),
                 },
                 create: {
@@ -562,6 +564,8 @@ export class MonitorScheduler {
                   ma24: bbiData.ma24,
                   aboveBBIConsecutiveDays: bbiData.aboveBBIConsecutiveDays,
                   belowBBIConsecutiveDays: bbiData.belowBBIConsecutiveDays,
+                  aboveBBIConsecutiveDaysCount: bbiData.aboveBBIConsecutiveDaysCount,
+                  belowBBIConsecutiveDaysCount: bbiData.belowBBIConsecutiveDaysCount,
                   date: new Date(),
                 },
               });

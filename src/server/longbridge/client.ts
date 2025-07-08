@@ -232,11 +232,13 @@ export class LongBridgeClient {
     ma24: number;
     aboveBBIConsecutiveDays: boolean;
     belowBBIConsecutiveDays: boolean;
+    aboveBBIConsecutiveDaysCount: number;
+    belowBBIConsecutiveDaysCount: number;
   } | null> {
     try {
       // 获取足够的K线数据计算BBI（至少需要24天数据）
       const kLineData = await this.getKLineData(symbol, 50, KLINE_PERIOD.DAY);
-      
+
       if (kLineData.length < 24) {
         console.warn(`K线数据不足，无法计算BBI: ${symbol}`);
         return null;
@@ -254,10 +256,10 @@ export class LongBridgeClient {
 
       // 计算BBI指标
       const bbiResult = calculateBBI(formattedData);
-      
-      // 准备检查连续两天的数据
-      const historicalData = kLineData.slice(-2).map((k, index) => {
-        const dayData = formattedData.slice(0, kLineData.indexOf(k) + 1);
+
+      // 准备检查连续天数的数据 - 使用更多历史数据以获得准确的连续天数
+      const historicalData = kLineData.map((k, index) => {
+        const dayData = formattedData.slice(0, index + 1);
         const dayBBI = calculateBBI(dayData);
         return {
           close: k.close,
@@ -266,7 +268,7 @@ export class LongBridgeClient {
         };
       }).filter(d => d.bbi > 0); // 过滤掉无效的BBI数据
 
-      // 检查连续两天状态
+      // 检查连续天数状态
       const consecutiveCheck = checkBBIConsecutiveDays(historicalData);
 
       return {

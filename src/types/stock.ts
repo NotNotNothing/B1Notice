@@ -27,6 +27,8 @@ export interface StockData {
     ma24: number;
     aboveBBIConsecutiveDays: boolean;
     belowBBIConsecutiveDays: boolean;
+    aboveBBIConsecutiveDaysCount: number;
+    belowBBIConsecutiveDaysCount: number;
   };
 }
 

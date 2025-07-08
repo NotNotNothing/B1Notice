@@ -98,20 +98,22 @@ model Kdj {
 }
 
 model Bbi {
-  id                      String   @id @default(cuid())
-  stockId                 String
-  stock                   Stock    @relation(fields: [stockId], references: [id])
-  bbi                     Float
-  ma3                     Float
-  ma6                     Float
-  ma12                    Float
-  ma24                    Float
-  aboveBBIConsecutiveDays Boolean  @default(false)
-  belowBBIConsecutiveDays Boolean  @default(false)
-  quotes                  Quote[]
-  date                    DateTime @default(now())
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  id                          String   @id @default(cuid())
+  stockId                     String
+  stock                       Stock    @relation(fields: [stockId], references: [id])
+  bbi                         Float
+  ma3                         Float
+  ma6                         Float
+  ma12                        Float
+  ma24                        Float
+  aboveBBIConsecutiveDays     Boolean  @default(false)
+  belowBBIConsecutiveDays     Boolean  @default(false)
+  aboveBBIConsecutiveDaysCount Int     @default(0)
+  belowBBIConsecutiveDaysCount Int     @default(0)
+  quotes                      Quote[]
+  date                        DateTime @default(now())
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
 
   @@unique([stockId])
   @@index([stockId, date])

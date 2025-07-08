@@ -133,7 +133,7 @@ export const StockCard = ({ data, onClick }: StockCardProps) => {
                 {data.bbi.aboveBBIConsecutiveDays && (
                   <div className='flex items-center gap-2 bg-red-100 text-red-700 px-3 sm:px-4 py-2 rounded-full text-sm font-medium border border-red-200 shadow-sm'>
                     <div className='w-2 h-2 bg-red-500 rounded-full'></div>
-                    <span>连续2日高于BBI</span>
+                    <span>连续{data.bbi.aboveBBIConsecutiveDaysCount || 2}日高于BBI</span>
                     <span className='text-xs bg-red-200 px-2 py-1 rounded-full'>
                       多头信号
                     </span>
@@ -142,7 +142,7 @@ export const StockCard = ({ data, onClick }: StockCardProps) => {
                 {data.bbi.belowBBIConsecutiveDays && (
                   <div className='flex items-center gap-2 bg-green-100 text-green-700 px-3 sm:px-4 py-2 rounded-full text-sm font-medium border border-green-200 shadow-sm'>
                     <div className='w-2 h-2 bg-green-500 rounded-full'></div>
-                    <span className=''>连续2日低于BBI</span>
+                    <span className=''>连续{data.bbi.belowBBIConsecutiveDaysCount || 2}日低于BBI</span>
                     <span className='text-xs bg-green-200 px-2 py-1 rounded-full'>
                       空头信号
                     </span>

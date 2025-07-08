@@ -65,6 +65,8 @@ export async function GET(request: Request) {
               ma24: latestQuote.bbi.ma24,
               aboveBBIConsecutiveDays: latestQuote.bbi.aboveBBIConsecutiveDays,
               belowBBIConsecutiveDays: latestQuote.bbi.belowBBIConsecutiveDays,
+              aboveBBIConsecutiveDaysCount: latestQuote.bbi.aboveBBIConsecutiveDaysCount,
+              belowBBIConsecutiveDaysCount: latestQuote.bbi.belowBBIConsecutiveDaysCount,
             }
           : undefined,
         updatedAt: latestQuote?.updatedAt,
@@ -189,6 +191,8 @@ export async function POST(request: Request) {
             ma24: bbiData.ma24,
             aboveBBIConsecutiveDays: bbiData.aboveBBIConsecutiveDays,
             belowBBIConsecutiveDays: bbiData.belowBBIConsecutiveDays,
+            aboveBBIConsecutiveDaysCount: bbiData.aboveBBIConsecutiveDaysCount,
+            belowBBIConsecutiveDaysCount: bbiData.belowBBIConsecutiveDaysCount,
             date: new Date(),
           } as Prisma.BbiCreateInput,
         });
