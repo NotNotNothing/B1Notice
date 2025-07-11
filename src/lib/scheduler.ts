@@ -19,7 +19,7 @@ interface Monitor {
   stockId: string;
   isActive: boolean;
   condition: 'ABOVE' | 'BELOW';
-  type: 'PRICE' | 'VOLUME' | 'CHANGE_PERCENT' | 'KDJ_J' | 'WEEKLY_KDJ_J';
+  type: 'PRICE' | 'VOLUME' | 'CHANGE_PERCENT' | 'KDJ_J' | 'WEEKLY_KDJ_J' | 'BBI_ABOVE_CONSECUTIVE' | 'BBI_BELOW_CONSECUTIVE';
   value: number;
   stock: {
     symbol: string;
@@ -32,6 +32,7 @@ interface IndicatorData {
   close?: number; // for PRICE
   volume?: number; // for VOLUME
   changePercent?: number; // for CHANGE_PERCENT
+  bbiConsecutiveDays?: number; // for BBI consecutive
 }
 
 // 添加日志工具
@@ -127,6 +128,35 @@ export class MonitorScheduler {
     }
   }
 
+  private async checkBBIConsecutive(
+    symbol: string,
+    isAbove: boolean,
+  ): Promise<number | null> {
+    try {
+      const bbiRecord = await prisma.bbi.findFirst({
+        where: {
+          stock: { symbol },
+        },
+        select: {
+          aboveBBIConsecutiveDaysCount: true,
+          belowBBIConsecutiveDaysCount: true,
+        },
+      });
+
+      if (!bbiRecord) {
+        logger.error(`找不到${symbol}的BBI记录`);
+        return null;
+      }
+
+      return isAbove 
+        ? bbiRecord.aboveBBIConsecutiveDaysCount 
+        : bbiRecord.belowBBIConsecutiveDaysCount;
+    } catch (error) {
+      logger.error(`查询${symbol}BBI连续天数失败:`, error);
+      return null;
+    }
+  }
+
   private async getCurrentValue(monitor: Monitor): Promise<number | null> {
     switch (monitor.type) {
       case 'PRICE':
@@ -139,6 +169,10 @@ export class MonitorScheduler {
         return this.checkKDJJ(monitor.stock.symbol, false);
       case 'WEEKLY_KDJ_J':
         return this.checkKDJJ(monitor.stock.symbol, true);
+      case 'BBI_ABOVE_CONSECUTIVE':
+        return this.checkBBIConsecutive(monitor.stock.symbol, true);
+      case 'BBI_BELOW_CONSECUTIVE':
+        return this.checkBBIConsecutive(monitor.stock.symbol, false);
       default:
         return null;
     }
@@ -280,6 +314,10 @@ export class MonitorScheduler {
         return 'KDJ指标(J值)';
       case 'WEEKLY_KDJ_J':
         return '周线KDJ指标(J值)';
+      case 'BBI_ABOVE_CONSECUTIVE':
+        return 'BBI连续高于价格天数';
+      case 'BBI_BELOW_CONSECUTIVE':
+        return 'BBI连续低于价格天数';
       default:
         return type;
     }
@@ -696,7 +734,7 @@ export class MonitorScheduler {
       const regularMonitors = await prisma.monitor.findMany({
         where: {
           isActive: true,
-          type: { not: 'KDJ_J' },
+          type: { notIn: ['KDJ_J', 'WEEKLY_KDJ_J'] },
           stock: { market: { in: markets } },
         },
         include: { stock: true },
@@ -706,7 +744,7 @@ export class MonitorScheduler {
       const kdjMonitors = await prisma.monitor.findMany({
         where: {
           isActive: true,
-          type: 'KDJ_J',
+          type: { in: ['KDJ_J', 'WEEKLY_KDJ_J'] },
           stock: { market: { in: markets } },
         },
         include: { stock: true },

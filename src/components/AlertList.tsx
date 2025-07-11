@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { AlertConfig } from '../types/stock';
+import { MonitorResponse } from '../types/monitor';
 import { Switch } from '@/components/ui/switch';
 import { Trash2Icon } from 'lucide-react';
-import { useStockStore } from '../store/useStockStore';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 
@@ -15,9 +15,27 @@ const getAlertTypeLabel = (type: AlertConfig['type']) => {
     case 'CHANGE_PERCENT':
       return '涨跌幅';
     case 'KDJ_J':
-      return 'KDJ指标(J值)';
+      return '日KDJ指标(J值)';
+    case 'WEEKLY_KDJ_J':
+      return '周KDJ指标(J值)';
+    case 'BBI_ABOVE_CONSECUTIVE':
+      return 'BBI连续高于价格';
+    case 'BBI_BELOW_CONSECUTIVE':
+      return 'BBI连续低于价格';
     default:
       return type;
+  }
+};
+
+const getValueSuffix = (type: AlertConfig['type']) => {
+  switch (type) {
+    case 'CHANGE_PERCENT':
+      return '%';
+    case 'BBI_ABOVE_CONSECUTIVE':
+    case 'BBI_BELOW_CONSECUTIVE':
+      return '天';
+    default:
+      return '';
   }
 };
 
@@ -25,11 +43,15 @@ interface AlertListProps {
   symbol: string;
 }
 
-export const AlertList = ({ symbol }: AlertListProps) => {
-  const [isLoading, setIsLoading] = useState(true);
-  const [monitors, setMonitors] = useState<any[]>([]);
+export interface AlertListRef {
+  fetchMonitors: () => void;
+}
 
-  const fetchMonitors = async () => {
+export const AlertList = forwardRef<AlertListRef, AlertListProps>(({ symbol }, ref) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [monitors, setMonitors] = useState<MonitorResponse[]>([]);
+
+  const fetchMonitors = useCallback(async () => {
     try {
       setIsLoading(true);
       const response = await fetch(`/api/monitors?stockSymbol=${symbol}`);
@@ -44,11 +66,15 @@ export const AlertList = ({ symbol }: AlertListProps) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [symbol]);
 
   useEffect(() => {
     fetchMonitors();
-  }, [symbol]);
+  }, [symbol, fetchMonitors]);
+
+  useImperativeHandle(ref, () => ({
+    fetchMonitors
+  }));
 
   const handleToggle = async (id: string, currentState: boolean) => {
     try {
@@ -102,7 +128,7 @@ export const AlertList = ({ symbol }: AlertListProps) => {
   }
 
   if (monitors.length === 0) {
-    return <p className='text-gray-500 text-center py-4'>暂无监控规则</p>;
+    return <p className='text-gray-600 dark:text-gray-400 text-center py-4'>暂无监控规则</p>;
   }
 
   return (
@@ -110,29 +136,42 @@ export const AlertList = ({ symbol }: AlertListProps) => {
       {monitors.map((monitor) => (
         <div
           key={monitor.id}
-          className='bg-white/5 backdrop-blur-lg border border-white/10 rounded-xl p-1 pl-4 pr-4'
+          className='bg-white dark:bg-gray-800 backdrop-blur-lg border border-gray-200 dark:border-gray-700 rounded-xl p-3 sm:p-4 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors duration-200 shadow-sm'
         >
-          <div className='flex items-center justify-between'>
-            <div className='space-y-2'>
-              <div className='flex items-center gap-1'>
+          <div className='flex items-start sm:items-center justify-between gap-3'>
+            <div className='space-y-1 sm:space-y-2 min-w-0 flex-1'>
+              <div className='flex items-center gap-2'>
                 <span
                   className={cn(
-                    'px-3 py-1 rounded-full text-sm',
+                    'px-2 py-1 sm:px-3 sm:py-1 rounded-full text-xs sm:text-sm font-medium border',
                     monitor.isActive
-                      ? 'bg-emerald-500/20 text-emerald-400'
-                      : 'bg-gray-500/20 text-gray-400',
+                      ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-600'
+                      : 'bg-gray-100 dark:bg-gray-800/60 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600',
                   )}
                 >
                   {getAlertTypeLabel(monitor.type)}
                 </span>
-                <span>
-                  {monitor.condition === 'ABOVE' ? '高于' : '低于'}{' '}
-                  {monitor.threshold}
-                  {monitor.type === 'CHANGE_PERCENT' ? '%' : ''}
-                </span>
+              </div>
+              <div className='text-xs sm:text-sm text-gray-700 dark:text-gray-200 font-medium'>
+                {monitor.type === 'BBI_ABOVE_CONSECUTIVE' || monitor.type === 'BBI_BELOW_CONSECUTIVE' ? (
+                  <span>
+                    连续 {monitor.threshold} 天
+                  </span>
+                ) : (
+                  <span>
+                    {monitor.condition === 'ABOVE' ? '高于' : '低于'}{' '}
+                    {monitor.threshold}
+                    {getValueSuffix(monitor.type)}
+                  </span>
+                )}
+                {monitor.costLine && (
+                  <span className='ml-2 text-xs text-blue-600 dark:text-blue-400 font-medium'>
+                    (成本线: {monitor.costLine})
+                  </span>
+                )}
               </div>
             </div>
-            <div className='flex items-center gap-4'>
+            <div className='flex items-center gap-2 sm:gap-4 flex-shrink-0'>
               <Switch
                 checked={monitor.isActive}
                 onCheckedChange={() =>
@@ -141,9 +180,9 @@ export const AlertList = ({ symbol }: AlertListProps) => {
               />
               <button
                 onClick={() => handleDelete(monitor.id)}
-                className='text-gray-400 hover:text-red-400 transition-colors'
+                className='text-gray-600 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg'
               >
-                <Trash2Icon className='w-4 h-4' />
+                <Trash2Icon className='w-3 h-3 sm:w-4 sm:h-4' />
               </button>
             </div>
           </div>
@@ -151,4 +190,6 @@ export const AlertList = ({ symbol }: AlertListProps) => {
       ))}
     </div>
   );
-};
+});
+
+AlertList.displayName = 'AlertList';

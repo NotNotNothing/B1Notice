@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Zsh(npm run:*)",
+      "Bash(DB_TYPE=sqlite npm run db:migrate:dev:create)",
+      "Bash(DB_TYPE=sqlite npm run db:migrate:dev)",
+      "Bash(sqlite3:*)",
+      "Bash(npm run:*)"
+    ],
+    "deny": [],
+    "defaultMode": "bypassPermissions"
+  }
+}

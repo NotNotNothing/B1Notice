@@ -6,6 +6,8 @@ import { useStockStore } from '../store/useStockStore';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
@@ -101,20 +103,23 @@ export const StockList = ({ stocks, onStocksChange }: StockListProps) => {
           <DialogTrigger asChild>
             <Button>添加股票</Button>
           </DialogTrigger>
-          <DialogContent>
-            <DialogTitle>添加新股票</DialogTitle>
+          <DialogContent className='w-[95vw] max-w-md mx-auto'>
+            <DialogHeader>
+              <DialogTitle>添加新股票</DialogTitle>
+            </DialogHeader>
             <div className='space-y-4'>
-              <div className='flex gap-2'>
+              <div className='flex flex-col sm:flex-row gap-2'>
                 <Input
                   placeholder='股票代码'
                   value={newStockSymbol}
                   onChange={(e) => setNewStockSymbol(e.target.value)}
+                  className='flex-1'
                 />
                 <Select
                   value={newStockMarket}
                   onValueChange={setNewStockMarket}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className='w-full sm:w-24'>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -125,8 +130,8 @@ export const StockList = ({ stocks, onStocksChange }: StockListProps) => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button disabled={isAddingStock} onClick={handleAddStock}>
-                {isAddingStock && <Loader2 className='animate-spin' />}
+              <Button disabled={isAddingStock} onClick={handleAddStock} className='w-full'>
+                {isAddingStock && <Loader2 className='animate-spin mr-2 h-4 w-4' />}
                 确认添加
               </Button>
             </div>
@@ -163,9 +168,14 @@ export const StockList = ({ stocks, onStocksChange }: StockListProps) => {
                   </Button>
                 </div>
               </DialogTrigger>
-              {selectedStock && (
-                <DialogContent>
-                  <DialogTitle>设置买点提醒</DialogTitle>
+              {selectedStock && selectedStock.symbol === stock.symbol && (
+                <DialogContent className='w-[95vw] max-w-2xl mx-auto max-h-[90vh] overflow-y-auto'>
+                  <DialogHeader>
+                    <DialogTitle>添加监控规则</DialogTitle>
+                    <DialogDescription>
+                      为 {selectedStock.name} ({selectedStock.symbol}) 设置监控规则
+                    </DialogDescription>
+                  </DialogHeader>
                   <AlertForm
                     stock={selectedStock}
                     onClose={() => setSelectedStock(null)}
