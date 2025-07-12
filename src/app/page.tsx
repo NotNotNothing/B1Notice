@@ -3,7 +3,6 @@ import { useStockStore } from '../store/useStockStore';
 import { useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { KDJCalculator } from '../components/KDJCalculator';
 import { StockList } from '../components/StockList';
 import { AlertPanel } from '../components/AlertPanel';
 import { Button } from '@/components/ui/button';
@@ -48,7 +47,6 @@ export default function Home() {
         <TabsList>
           <TabsTrigger value='stocks'>股票列表</TabsTrigger>
           <TabsTrigger value='alerts'>指标监控</TabsTrigger>
-          {/* <TabsTrigger value='kdj'>KDJ计算</TabsTrigger> */}
         </TabsList>
 
         <TabsContent value='stocks'>
@@ -59,9 +57,6 @@ export default function Home() {
           <AlertPanel stocks={stocks} />
         </TabsContent>
 
-        {/* <TabsContent value='kdj'>
-          <KDJCalculator />
-        </TabsContent> */}
       </Tabs>
     </main>
   );

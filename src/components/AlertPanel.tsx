@@ -1,7 +1,7 @@
 import { StockData } from '../types/stock';
 import { AlertList, AlertListRef } from './AlertList';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertTriangle, TrendingUp, TrendingDown, Plus, Settings } from 'lucide-react';
+import { TrendingUpDown, TrendingUp, TrendingDown, Plus, Settings } from 'lucide-react';
 import { AlertForm } from './AlertForm';
 import { Button } from '@/components/ui/button';
 import { useState, useRef } from 'react';
@@ -43,17 +43,17 @@ export const AlertPanel = ({ stocks }: AlertPanelProps) => {
   };
 
   const getStockStatusColor = (stock: StockData) => {
-    if (!stock.changePercent) return 'border-gray-200/30 dark:border-gray-700/30';
-    if (stock.changePercent > 0) return 'border-green-400/30 dark:border-green-500/30';
-    if (stock.changePercent < 0) return 'border-red-400/30 dark:border-red-500/30';
+    if (!stock.changePercent || stock.changePercent === 0) return 'border-gray-200/30 dark:border-gray-700/30';
+    if (stock.changePercent > 0) return 'border-red-400/30 dark:border-red-500/30';
+    if (stock.changePercent < 0) return 'border-green-400/30 dark:border-green-500/30';
     return 'border-gray-200/30 dark:border-gray-700/30';
   };
 
   const getStockIcon = (stock: StockData) => {
-    if (!stock.changePercent) return AlertTriangle;
+    if (!stock.changePercent) return TrendingUpDown;
     if (stock.changePercent > 0) return TrendingUp;
     if (stock.changePercent < 0) return TrendingDown;
-    return AlertTriangle;
+    return TrendingUpDown;
   };
 
   return (
@@ -111,14 +111,14 @@ export const AlertPanel = ({ stocks }: AlertPanelProps) => {
                     <div className='flex items-center gap-2 sm:gap-3'>
                       <div className={cn(
                         'p-2 sm:p-3 rounded-xl',
-                        stock.changePercent > 0 ? 'bg-green-100 dark:bg-green-900/30' :
-                        stock.changePercent < 0 ? 'bg-red-100 dark:bg-red-900/30' :
+                        stock.changePercent > 0 ? 'bg-red-100 dark:bg-red-900/30' :
+                        stock.changePercent < 0 ? 'bg-green-100 dark:bg-green-900/30' :
                         'bg-gray-100 dark:bg-gray-800'
                       )}>
                         <Icon className={cn(
                           'h-4 w-4 sm:h-6 sm:w-6',
-                          stock.changePercent > 0 ? 'text-green-600 dark:text-green-400' :
-                          stock.changePercent < 0 ? 'text-red-600 dark:text-red-400' :
+                          stock.changePercent > 0 ? 'text-red-600 dark:text-red-400' :
+                          stock.changePercent < 0 ? 'text-green-600 dark:text-green-400' :
                           'text-gray-500 dark:text-gray-400'
                         )} />
                       </div>
@@ -138,8 +138,8 @@ export const AlertPanel = ({ stocks }: AlertPanelProps) => {
                           {stock.changePercent && (
                             <span className={cn(
                               'text-xs px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full font-medium',
-                              stock.changePercent > 0 ? 'bg-green-500/20 text-green-400' :
-                              stock.changePercent < 0 ? 'bg-red-500/20 text-red-400' :
+                              stock.changePercent > 0 ? 'bg-red-500/20 text-red-400' :
+                              stock.changePercent < 0 ? 'bg-green-500/20 text-green-400' :
                               'bg-gray-500/20 text-gray-400'
                             )}>
                               {stock.changePercent > 0 ? '+' : ''}{stock.changePercent.toFixed(2)}%
@@ -169,8 +169,8 @@ export const AlertPanel = ({ stocks }: AlertPanelProps) => {
                           </DialogDescription>
                         </DialogHeader>
                         {selectedStock && (
-                          <AlertForm 
-                            stock={selectedStock} 
+                          <AlertForm
+                            stock={selectedStock}
                             onClose={handleCloseDialog}
                             onSaved={() => handleAlertSaved(selectedStock.symbol)}
                           />
@@ -180,8 +180,8 @@ export const AlertPanel = ({ stocks }: AlertPanelProps) => {
                   </div>
                 </CardHeader>
                 <CardContent className='pt-0'>
-                  <AlertList 
-                    symbol={stock.symbol} 
+                  <AlertList
+                    symbol={stock.symbol}
                     ref={(ref) => {
                       if (ref) {
                         alertListRefs.current[stock.symbol] = ref;
