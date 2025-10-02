@@ -1,7 +1,7 @@
 import { StockData } from '../types/stock';
 import { AlertList, AlertListRef } from './AlertList';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUpDown, TrendingUp, TrendingDown, Plus, Settings } from 'lucide-react';
+import { TrendingUpDown, TrendingUp, TrendingDown, Plus, Settings, AlertTriangle } from 'lucide-react';
 import { AlertForm } from './AlertForm';
 import { Button } from '@/components/ui/button';
 import { useState, useRef } from 'react';
