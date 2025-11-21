@@ -30,6 +30,38 @@ export interface StockData {
     aboveBBIConsecutiveDaysCount: number;
     belowBBIConsecutiveDaysCount: number;
   };
+  zhixingTrend?: {
+    whiteLine: number;
+    yellowLine: number;
+    previousWhiteLine: number;
+    previousYellowLine: number;
+    isGoldenCross: boolean;
+    isDeathCross: boolean;
+    updatedAt?: string;
+  };
+  sellSignal?: {
+    hasSellSignal: boolean;
+    consecutiveDaysBelowWhiteLine: number;
+    lastTwoDaysData: Array<{
+      date: string;
+      price: number;
+      whiteLine: number;
+      belowWhiteLine: boolean;
+    }>;
+  };
+  buySignal?: {
+    hasBuySignal: boolean;
+    conditions: {
+      whiteAboveYellow: boolean;
+      jBelowThreshold: boolean;
+      volumeContraction: boolean;
+    };
+    whiteLine: number;
+    yellowLine: number;
+    jValue: number;
+    volume: number;
+    avgVolume: number;
+  };
 }
 
 export interface KLineData {
@@ -41,7 +73,7 @@ export interface KLineData {
   volume: number;
 }
 
-export type AlertType = 'PRICE' | 'VOLUME' | 'CHANGE_PERCENT' | 'KDJ_J' | 'WEEKLY_KDJ_J' | 'BBI_ABOVE_CONSECUTIVE' | 'BBI_BELOW_CONSECUTIVE';
+export type AlertType = 'PRICE' | 'VOLUME' | 'CHANGE_PERCENT' | 'KDJ_J' | 'WEEKLY_KDJ_J' | 'BBI_ABOVE_CONSECUTIVE' | 'BBI_BELOW_CONSECUTIVE' | 'SELL_SIGNAL';
 export type AlertCondition = 'ABOVE' | 'BELOW';
 
 export interface AlertConfig {

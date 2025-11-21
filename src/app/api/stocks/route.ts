@@ -27,6 +27,7 @@ export async function GET(request: Request) {
             dailyKdj: true,
             weeklyKdj: true,
             bbi: true,
+            zhixingTrend: true,
           },
         },
       } as Prisma.StockInclude,
@@ -67,6 +68,17 @@ export async function GET(request: Request) {
               belowBBIConsecutiveDays: latestQuote.bbi.belowBBIConsecutiveDays,
               aboveBBIConsecutiveDaysCount: latestQuote.bbi.aboveBBIConsecutiveDaysCount,
               belowBBIConsecutiveDaysCount: latestQuote.bbi.belowBBIConsecutiveDaysCount,
+            }
+          : undefined,
+        zhixingTrend: latestQuote?.zhixingTrend
+          ? {
+              whiteLine: latestQuote.zhixingTrend.whiteLine,
+              yellowLine: latestQuote.zhixingTrend.yellowLine,
+              previousWhiteLine: latestQuote.zhixingTrend.previousWhiteLine,
+              previousYellowLine: latestQuote.zhixingTrend.previousYellowLine,
+              isGoldenCross: latestQuote.zhixingTrend.isGoldenCross,
+              isDeathCross: latestQuote.zhixingTrend.isDeathCross,
+              updatedAt: latestQuote.zhixingTrend.updatedAt.toISOString(),
             }
           : undefined,
         updatedAt: latestQuote?.updatedAt,
@@ -138,6 +150,11 @@ export async function POST(request: Request) {
       // 获取BBI指标
       const bbiData = await client.calculateBBI(symbol.toUpperCase());
 
+      // 获取知行多空趋势线
+      const zhixingTrendData = await client.calculateZhixingTrend(
+        symbol.toUpperCase(),
+      );
+
       if (!dailyKdj.length || !weeklyKdj.length) {
         throw new Error('获取KDJ数据失败');
       }
@@ -198,6 +215,27 @@ export async function POST(request: Request) {
         });
       }
 
+      // 存储知行多空趋势线
+      let latestZhixingTrend = null;
+      if (zhixingTrendData) {
+        latestZhixingTrend = await prisma.zhixingTrend.create({
+          data: {
+            stock: {
+              connect: {
+                id: stock.id,
+              },
+            },
+            whiteLine: zhixingTrendData.whiteLine,
+            yellowLine: zhixingTrendData.yellowLine,
+            previousWhiteLine: zhixingTrendData.previousWhiteLine,
+            previousYellowLine: zhixingTrendData.previousYellowLine,
+            isGoldenCross: zhixingTrendData.isGoldenCross,
+            isDeathCross: zhixingTrendData.isDeathCross,
+            date: new Date(zhixingTrendData.timestamp),
+          } as Prisma.ZhixingTrendCreateInput,
+        });
+      }
+
       // 存储股票报价
       const stockQuote = await prisma.quote.create({
         data: {
@@ -223,6 +261,13 @@ export async function POST(request: Request) {
             bbi: {
               connect: {
                 id: latestBbi.id,
+              },
+            },
+          } : {}),
+          ...(latestZhixingTrend ? {
+            zhixingTrend: {
+              connect: {
+                id: latestZhixingTrend.id,
               },
             },
           } : {}),
@@ -254,6 +299,17 @@ export async function POST(request: Request) {
             ma24: bbiData.ma24,
             aboveBBIConsecutiveDays: bbiData.aboveBBIConsecutiveDays,
             belowBBIConsecutiveDays: bbiData.belowBBIConsecutiveDays,
+          },
+        } : {}),
+        ...(zhixingTrendData ? {
+          zhixingTrend: {
+            whiteLine: zhixingTrendData.whiteLine,
+            yellowLine: zhixingTrendData.yellowLine,
+            previousWhiteLine: zhixingTrendData.previousWhiteLine,
+            previousYellowLine: zhixingTrendData.previousYellowLine,
+            isGoldenCross: zhixingTrendData.isGoldenCross,
+            isDeathCross: zhixingTrendData.isDeathCross,
+            updatedAt: latestZhixingTrend?.updatedAt.toISOString(),
           },
         } : {}),
       });
@@ -343,7 +399,14 @@ export async function DELETE(request: Request) {
         }
       });
 
-      // 6. Finally delete the stock
+      // 6. Delete Zhixing trend records for this stock
+      await tx.zhixingTrend.deleteMany({
+        where: {
+          stockId: stock.id,
+        },
+      });
+
+      // 7. Finally delete the stock
       await tx.stock.delete({
         where: {
           id: stock.id

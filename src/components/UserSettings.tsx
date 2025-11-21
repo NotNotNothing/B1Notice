@@ -22,6 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Switch } from '@/components/ui/switch';
 import Link from 'next/link';
 import { Apple } from 'lucide-react';
 
@@ -37,24 +38,34 @@ export function UserSettings({ username }: UserSettingsProps) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [pushDeerKey, setPushDeerKey] = useState('');
+  const [showBBITrendSignal, setShowBBITrendSignal] = useState(true);
+  const [buySignalJThreshold, setBuySignalJThreshold] = useState(20.0);
 
   useEffect(() => {
-    // 获取当前用户的 PushDeer Key
-    const fetchPushDeerKey = async () => {
+    // 获取当前用户的设置
+    const fetchUserSettings = async () => {
       try {
-        const response = await fetch('/api/user/pushdeer');
-        if (!response.ok) {
-          throw new Error('获取 PushDeer Key 失败');
+        // 获取 PushDeer Key
+        const pushdeerResponse = await fetch('/api/user/pushdeer');
+        if (pushdeerResponse.ok) {
+          const pushdeerData = await pushdeerResponse.json();
+          setPushDeerKey(pushdeerData.pushDeerKey || '');
         }
-        const data = await response.json();
-        setPushDeerKey(data.pushDeerKey || '');
+
+        // 获取BBI趋势信号设置
+        const bbiResponse = await fetch('/api/user/bbi-settings');
+        if (bbiResponse.ok) {
+          const bbiData = await bbiResponse.json();
+          setShowBBITrendSignal(bbiData.showBBITrendSignal);
+          setBuySignalJThreshold(bbiData.buySignalJThreshold);
+        }
       } catch (error) {
-        console.error('获取 PushDeer Key 失败:', error);
+        console.error('获取用户设置失败:', error);
       }
     };
 
     if (isOpen) {
-      fetchPushDeerKey();
+      fetchUserSettings();
     }
   }, [isOpen]);
 
@@ -113,10 +124,65 @@ export function UserSettings({ username }: UserSettingsProps) {
       }
 
       toast.success('PushDeer Key 更新成功');
-      setIsOpen(false);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : '更新 PushDeer Key 失败',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateBBITrendSignal = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/user/bbi-settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          showBBITrendSignal,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '更新BBI趋势信号设置失败');
+      }
+
+      toast.success('BBI趋势信号设置更新成功');
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : '更新BBI趋势信号设置失败',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateBuySignalThreshold = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/user/bbi-settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          buySignalJThreshold,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '更新买入信号设置失败');
+      }
+
+      toast.success('买入信号设置更新成功');
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : '更新买入信号设置失败',
       );
     } finally {
       setIsLoading(false);
@@ -229,6 +295,63 @@ export function UserSettings({ username }: UserSettingsProps) {
                   修改密码
                 </Button>
               </div> */}
+
+              {/* BBI趋势信号设置 */}
+              <div className='space-y-4'>
+                <div className='flex items-center justify-between'>
+                  <div className='space-y-0.5'>
+                    <Label htmlFor='bbi-setting' className='text-base'>
+                      BBI趋势信号
+                    </Label>
+                    <p className='text-sm text-gray-500'>
+                      控制是否在股票卡片上显示BBI趋势信号信息
+                    </p>
+                  </div>
+                  <Switch
+                    id='bbi-setting'
+                    checked={showBBITrendSignal}
+                    onCheckedChange={setShowBBITrendSignal}
+                    disabled={isLoading}
+                  />
+                </div>
+                <Button
+                  onClick={handleUpdateBBITrendSignal}
+                  disabled={isLoading}
+                  className='w-full'
+                >
+                  保存BBI趋势信号设置
+                </Button>
+              </div>
+
+              {/* 买入信号设置 */}
+              <div className='space-y-4'>
+                <div className='space-y-2'>
+                  <Label htmlFor='j-threshold' className='text-base'>
+                    买入信号J值阈值
+                  </Label>
+                  <p className='text-sm text-gray-500'>
+                    当J值低于此阈值时触发买入信号（默认20）
+                  </p>
+                  <Input
+                    id='j-threshold'
+                    type='number'
+                    min='0'
+                    max='100'
+                    step='0.1'
+                    value={buySignalJThreshold}
+                    onChange={(e) => setBuySignalJThreshold(parseFloat(e.target.value))}
+                    placeholder='请输入J值阈值'
+                  />
+                </div>
+                <Button
+                  onClick={handleUpdateBuySignalThreshold}
+                  disabled={isLoading}
+                  className='w-full'
+                >
+                  保存买入信号设置
+                </Button>
+              </div>
+
               <div className='space-y-4'>
                 <div>
                   <Label htmlFor='pushDeerKey'>

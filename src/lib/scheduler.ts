@@ -13,6 +13,7 @@ import { LongBridgeClient } from '../server/longbridge/client';
 import { sendCanBuyMessageByPushDeer } from '@/server/pushdeer';
 import { KDJ_TYPE } from '@/utils';
 import { isProd } from './utils';
+import { detectSellSignal } from '../utils/sellSignals';
 
 interface Monitor {
   id: string;
@@ -148,11 +149,31 @@ export class MonitorScheduler {
         return null;
       }
 
-      return isAbove 
-        ? bbiRecord.aboveBBIConsecutiveDaysCount 
+      return isAbove
+        ? bbiRecord.aboveBBIConsecutiveDaysCount
         : bbiRecord.belowBBIConsecutiveDaysCount;
     } catch (error) {
       logger.error(`查询${symbol}BBI连续天数失败:`, error);
+      return null;
+    }
+  }
+
+  private async checkSellSignal(symbol: string): Promise<number | null> {
+    try {
+      // 获取足够的K线数据用于卖出信号检测（至少180个交易日）
+      const klineData = await this.longBridgeClient.getKLineData(symbol, 240, KLINE_PERIOD.DAY);
+
+      if (klineData.length < 30) {
+        logger.error(`K线数据不足，无法检测卖出信号: ${symbol}`);
+        return null;
+      }
+
+      const sellSignalResult = detectSellSignal(klineData);
+
+      // 返回1表示有卖出信号，0表示无卖出信号
+      return sellSignalResult.isSellSignal ? 1 : 0;
+    } catch (error) {
+      logger.error(`检测${symbol}卖出信号失败:`, error);
       return null;
     }
   }
@@ -173,6 +194,8 @@ export class MonitorScheduler {
         return this.checkBBIConsecutive(monitor.stock.symbol, true);
       case 'BBI_BELOW_CONSECUTIVE':
         return this.checkBBIConsecutive(monitor.stock.symbol, false);
+      case 'SELL_SIGNAL':
+        return this.checkSellSignal(monitor.stock.symbol);
       default:
         return null;
     }
@@ -318,6 +341,8 @@ export class MonitorScheduler {
         return 'BBI连续高于价格天数';
       case 'BBI_BELOW_CONSECUTIVE':
         return 'BBI连续低于价格天数';
+      case 'SELL_SIGNAL':
+        return '卖出信号';
       default:
         return type;
     }
@@ -495,6 +520,10 @@ export class MonitorScheduler {
           // 获取BBI指标
           const bbiData = await this.longBridgeClient.calculateBBI(stock.symbol);
 
+          // 获取知行多空趋势线
+          const zhixingTrendData =
+            await this.longBridgeClient.calculateZhixingTrend(stock.symbol);
+
           if (!dailyKdj.length || !weeklyKdj.length) {
             logger.error(`获取股票${stock.symbol}KDJ数据失败`);
             continue;
@@ -614,6 +643,49 @@ export class MonitorScheduler {
               });
             }
 
+            // 存储知行多空趋势线
+            let latestZhixingTrend = null;
+            if (zhixingTrendData) {
+              const existingTrend = await prisma.zhixingTrend.findFirst({
+                where: {
+                  stockId: stock.id,
+                },
+                select: { id: true },
+              });
+
+              latestZhixingTrend = await prisma.zhixingTrend.upsert({
+                where: {
+                  id: existingTrend?.id ?? 'new',
+                },
+                update: {
+                  whiteLine: zhixingTrendData.whiteLine,
+                  yellowLine: zhixingTrendData.yellowLine,
+                  previousWhiteLine: zhixingTrendData.previousWhiteLine,
+                  previousYellowLine: zhixingTrendData.previousYellowLine,
+                  isGoldenCross: zhixingTrendData.isGoldenCross,
+                  isDeathCross: zhixingTrendData.isDeathCross,
+                  date: new Date(zhixingTrendData.timestamp),
+                },
+                create: {
+                  stockId: stock.id,
+                  whiteLine: zhixingTrendData.whiteLine,
+                  yellowLine: zhixingTrendData.yellowLine,
+                  previousWhiteLine: zhixingTrendData.previousWhiteLine,
+                  previousYellowLine: zhixingTrendData.previousYellowLine,
+                  isGoldenCross: zhixingTrendData.isGoldenCross,
+                  isDeathCross: zhixingTrendData.isDeathCross,
+                  date: new Date(zhixingTrendData.timestamp),
+                },
+              });
+
+              logger.info(`成功存储知行多空数据: ${stock.symbol}`, {
+                zhixingTrendId: latestZhixingTrend.id,
+                whiteLine: zhixingTrendData.whiteLine,
+                yellowLine: zhixingTrendData.yellowLine,
+                isGoldenCross: zhixingTrendData.isGoldenCross,
+              });
+            }
+
             // 存储股票报价
             const existingQuote = await prisma.quote.findFirst({
               where: {
@@ -633,6 +705,9 @@ export class MonitorScheduler {
                 dailyKdjId: latestDailyKdj.id,
                 weeklyKdjId: latestWeeklyKdj.id,
                 ...(latestBbi ? { bbiId: latestBbi.id } : {}),
+                ...(latestZhixingTrend
+                  ? { zhixingTrendId: latestZhixingTrend.id }
+                  : {}),
               },
               create: {
                 stockId: stock.id,
@@ -642,6 +717,9 @@ export class MonitorScheduler {
                 dailyKdjId: latestDailyKdj.id,
                 weeklyKdjId: latestWeeklyKdj.id,
                 ...(latestBbi ? { bbiId: latestBbi.id } : {}),
+                ...(latestZhixingTrend
+                  ? { zhixingTrendId: latestZhixingTrend.id }
+                  : {}),
               },
             });
 

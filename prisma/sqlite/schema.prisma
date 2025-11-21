@@ -20,6 +20,7 @@ model Stock {
   monitors    Monitor[]
   kdjs        Kdj[]
   bbis        Bbi[]
+  zhixingTrends ZhixingTrend[]
   quotes      Quote[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
@@ -35,7 +36,7 @@ model Monitor {
   stock         Stock          @relation(fields: [stockId], references: [id])
   userId        String
   user          User           @relation(fields: [userId], references: [id])
-  type          String        // PRICE, VOLUME, CHANGE_PERCENT, KDJ_J
+  type          String        // PRICE, VOLUME, CHANGE_PERCENT, KDJ_J, WEEKLY_KDJ_J, BBI_ABOVE_CONSECUTIVE, BBI_BELOW_CONSECUTIVE, SELL_SIGNAL
   condition     String        // ABOVE, BELOW
   threshold     Float         // 阈值
   isActive      Boolean       @default(true)
@@ -70,6 +71,8 @@ model Quote {
   weeklyKdjId   String?
   bbi           Bbi?    @relation(fields: [bbiId], references: [id])
   bbiId         String?
+  zhixingTrend  ZhixingTrend? @relation(fields: [zhixingTrendId], references: [id])
+  zhixingTrendId String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -119,19 +122,40 @@ model Bbi {
   @@index([stockId, date])
 }
 
+model ZhixingTrend {
+  id                 String   @id @default(cuid())
+  stockId            String
+  stock              Stock    @relation(fields: [stockId], references: [id])
+  whiteLine          Float
+  yellowLine         Float
+  previousWhiteLine  Float
+  previousYellowLine Float
+  isGoldenCross      Boolean  @default(false)
+  isDeathCross       Boolean  @default(false)
+  quotes             Quote[]
+  date               DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([stockId])
+  @@index([stockId, date])
+}
+
 model User {
-  id            String    @id @default(cuid())
-  username      String    @unique
-  name          String?
-  password      String
-  role          String    @default("USER")  // USER, ADMIN
-  pushDeerKey   String?   // PushDeer 推送 key
-  stocks        Stock[]
-  monitors      Monitor[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  sessions      Session[]
-  accounts      Account[]
+  id                    String    @id @default(cuid())
+  username              String    @unique
+  name                  String?
+  password              String
+  role                  String    @default("USER")  // USER, ADMIN
+  pushDeerKey           String?   // PushDeer 推送 key
+  showBBITrendSignal    Boolean   @default(true)   // 是否显示BBI趋势信号
+  buySignalJThreshold   Float     @default(20.0)   // 买入信号J值阈值
+  stocks                Stock[]
+  monitors              Monitor[]
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  sessions              Session[]
+  accounts              Account[]
 }
 
 model Account {

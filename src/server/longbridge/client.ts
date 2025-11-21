@@ -1,7 +1,15 @@
-import { Config, QuoteContext, SecurityQuote } from 'longport';
+import { AdjustType, Config, QuoteContext, SecurityQuote, Candlestick } from 'longport';
 import { KLine, KDJResult } from './types';
 import { StockData } from '../../types/stock';
-import { calculateBBI, checkBBIConsecutiveDays } from '../../utils/indicators';
+import {
+  calculateBBI,
+  calculateZhixingTrend,
+  checkBBIConsecutiveDays,
+  checkSellSignal,
+  ZhixingTrendOptions,
+  ZhixingTrendResult,
+  SellSignalResult,
+} from '../../utils/indicators';
 
 // K线周期定义
 export const KLINE_PERIOD = {
@@ -111,7 +119,31 @@ export class LongBridgeClient {
     period: number = KLINE_PERIOD.DAY,
   ): Promise<KLine[]> {
     const ctx = await this.getQuoteContext();
-    const response = await ctx.candlesticks(symbol, period, count, 0);
+    let response: Candlestick[];
+    try {
+      response = await ctx.candlesticks(
+        symbol,
+        period,
+        count,
+        AdjustType.ForwardAdjust,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? String(error.message) : String(error);
+      if (message.includes('connections limitation is hit')) {
+        console.warn('QuoteContext connection limit reached, recreating context…');
+        this.quoteContext = null;
+        const retryCtx = await this.getQuoteContext();
+        response = await retryCtx.candlesticks(
+          symbol,
+          period,
+          count,
+          AdjustType.ForwardAdjust,
+        );
+      } else {
+        throw error;
+      }
+    }
     console.log(
       `[K线数据] 获取到${symbol}的K线数据，周期: ${
         period === KLINE_PERIOD.WEEK ? '周线' : '日线'
@@ -281,6 +313,34 @@ export class LongBridgeClient {
     }
   }
 
+  async calculateZhixingTrend(
+    symbol: string,
+    options?: ZhixingTrendOptions,
+  ): Promise<ZhixingTrendResult | null> {
+    try {
+      const kLineData = await this.getKLineData(symbol, 240, KLINE_PERIOD.DAY);
+
+      if (kLineData.length === 0) {
+        console.warn(`K线数据不足，无法计算知行多空趋势线: ${symbol}`);
+        return null;
+      }
+
+      const formattedData = kLineData.map((k) => ({
+        timestamp: new Date(k.timestamp).toISOString(),
+        open: k.close,
+        high: k.high,
+        low: k.low,
+        close: k.close,
+        volume: 0,
+      }));
+
+      return calculateZhixingTrend(formattedData, options);
+    } catch (error) {
+      console.error('Error calculating Zhixing trend:', error);
+      return null;
+    }
+  }
+
   async getQuote(symbol: string): Promise<{
     price: number;
     volume: number;
@@ -314,6 +374,43 @@ export class LongBridgeClient {
 
   async getStockInfo(symbol: string) {
     return this.getStockStaticInfo(symbol);
+  }
+
+  async checkSellSignal(symbol: string): Promise<SellSignalResult | null> {
+    try {
+      // 获取足够的日线K线数据，一次性复用以降低行情接口压力
+      const kLineData = await this.getKLineData(symbol, 240, KLINE_PERIOD.DAY);
+      if (kLineData.length < 2) {
+        console.warn(`K线数据不足，无法检测卖出信号: ${symbol}`);
+        return null;
+      }
+
+      const indicatorKLines = kLineData.map((k) => ({
+        timestamp: k.timestamp.toString(),
+        open: k.close, // 简化处理，使用收盘价作为开盘价
+        high: k.high,
+        low: k.low,
+        close: k.close,
+        volume: 0,
+      }));
+
+      const zhixingTrendData = calculateZhixingTrend(indicatorKLines);
+      if (!zhixingTrendData) {
+        console.warn(`无法计算知行趋势线数据: ${symbol}`);
+        return null;
+      }
+
+      const recentKLines = indicatorKLines.slice(-10);
+
+      return checkSellSignal(
+        recentKLines,
+        zhixingTrendData.series,
+        zhixingTrendData.whiteLine,
+      );
+    } catch (error) {
+      console.error('检测卖出信号失败:', error);
+      return null;
+    }
   }
 }
 
