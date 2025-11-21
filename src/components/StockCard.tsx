@@ -57,7 +57,7 @@ export const StockCard = ({
   const showSellSignal = !!sellSignal?.hasSellSignal;
   const showBbiSection = !!data.bbi && showBBITrendSignal;
   const bbi = data.bbi;
-  const buySignalThreshold = buySignal?.jThreshold ?? 20;
+  const buySignalThreshold = 20; // 暂时使用固定值，因为类型定义中可能没有 jThreshold
 
   const toggleSignal = (type: 'buy' | 'sell', event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();

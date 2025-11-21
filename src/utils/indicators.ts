@@ -252,7 +252,7 @@ function buildZhixingSeries(
       return null;
     }
 
-    const total = maValues.reduce((sum, value) => sum + (value ?? 0), 0);
+    const total = maValues.reduce((sum: number, value) => sum + (value ?? 0), 0);
     return total / maValues.length;
   });
 

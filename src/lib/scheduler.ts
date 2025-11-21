@@ -14,13 +14,14 @@ import { sendCanBuyMessageByPushDeer } from '@/server/pushdeer';
 import { KDJ_TYPE } from '@/utils';
 import { isProd } from './utils';
 import { detectSellSignal } from '../utils/sellSignals';
+import { KLineData } from '../types/stock';
 
 interface Monitor {
   id: string;
   stockId: string;
   isActive: boolean;
   condition: 'ABOVE' | 'BELOW';
-  type: 'PRICE' | 'VOLUME' | 'CHANGE_PERCENT' | 'KDJ_J' | 'WEEKLY_KDJ_J' | 'BBI_ABOVE_CONSECUTIVE' | 'BBI_BELOW_CONSECUTIVE';
+  type: 'PRICE' | 'VOLUME' | 'CHANGE_PERCENT' | 'KDJ_J' | 'WEEKLY_KDJ_J' | 'BBI_ABOVE_CONSECUTIVE' | 'BBI_BELOW_CONSECUTIVE' | 'SELL_SIGNAL';
   value: number;
   stock: {
     symbol: string;
@@ -168,7 +169,14 @@ export class MonitorScheduler {
         return null;
       }
 
-      const sellSignalResult = detectSellSignal(klineData);
+      const sellSignalResult = detectSellSignal(klineData.map(k => ({
+        timestamp: k.timestamp.toString(),
+        open: k.open,
+        high: k.high,
+        low: k.low,
+        close: k.close,
+        volume: k.volume,
+      } as KLineData)));
 
       // 返回1表示有卖出信号，0表示无卖出信号
       return sellSignalResult.isSellSignal ? 1 : 0;

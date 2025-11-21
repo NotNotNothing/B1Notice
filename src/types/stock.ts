@@ -61,6 +61,7 @@ export interface StockData {
     jValue: number;
     volume: number;
     avgVolume: number;
+    jThreshold?: number;
   };
 }
 

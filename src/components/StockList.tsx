@@ -87,7 +87,11 @@ export const StockList = ({ stocks, onStocksChange, showBBITrendSignal = true }:
         const buySignal = hasBuySignal
           ? {
               hasBuySignal: true,
-              conditions: buySignalData.conditions,
+              conditions: buySignalData.conditions ?? {
+                whiteAboveYellow: false,
+                jBelowThreshold: false,
+                volumeContraction: false,
+              },
               whiteLine: buySignalData.whiteLine,
               yellowLine: buySignalData.yellowLine,
               jValue: buySignalData.jValue,

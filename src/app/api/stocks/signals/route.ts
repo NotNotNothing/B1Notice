@@ -52,7 +52,7 @@ export async function GET() {
       }
 
       const whiteAboveYellow = trend.whiteLine > trend.yellowLine;
-      const jBelowThreshold = kdj.j < user.buySignalJThreshold;
+      const jBelowThreshold = user ? kdj.j < user.buySignalJThreshold : false;
       const volumeContraction = quote.volume < 1_000_000;
       const hasBuySignal =
         whiteAboveYellow && jBelowThreshold && volumeContraction;
@@ -69,7 +69,7 @@ export async function GET() {
         jValue: kdj.j,
         volume: quote.volume,
         avgVolume: 1_000_000,
-        jThreshold: user.buySignalJThreshold,
+        jThreshold: user?.buySignalJThreshold ?? 0,
       };
     }
 

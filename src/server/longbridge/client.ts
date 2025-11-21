@@ -125,7 +125,7 @@ export class LongBridgeClient {
         symbol,
         period,
         count,
-        AdjustType.ForwardAdjust,
+        1, // ForwardAdjust
       );
     } catch (error) {
       const message =
@@ -138,7 +138,7 @@ export class LongBridgeClient {
           symbol,
           period,
           count,
-          AdjustType.ForwardAdjust,
+          1, // ForwardAdjust
         );
       } else {
         throw error;
@@ -154,6 +154,8 @@ export class LongBridgeClient {
       close: candle.close.toNumber(),
       high: candle.high.toNumber(),
       low: candle.low.toNumber(),
+      open: candle.open?.toNumber() || 0, // 处理可能缺失的 open 字段
+      volume: candle.volume || 0, // volume 可能已经是 number 类型
       timestamp: candle.timestamp.getTime(),
     }));
 

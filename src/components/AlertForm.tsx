@@ -100,7 +100,7 @@ const getStepValue = (type: AlertType): number => {
   }
 };
 
-const getValueHint = (type: AlertType): JSX.Element | null => {
+const getValueHint = (type: AlertType): React.ReactElement | null => {
   switch (type) {
     case 'KDJ_J':
     case 'WEEKLY_KDJ_J':

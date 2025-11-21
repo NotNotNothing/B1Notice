@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowUpDown } from 'lucide-react';
 import { UserSettings } from '@/components/UserSettings';
 import { Badge } from '@/components/ui/badge';
+import { TradeBoard } from '@/components/TradeBoard';
 
 export default function Home() {
   const { stocks, fetchStocks, isKDJDescending, toggleSortByKDJ } =
@@ -149,6 +150,12 @@ export default function Home() {
               >
                 指标监控
               </TabsTrigger>
+              <TabsTrigger
+                value='trades'
+                className='flex-1 rounded-xl data-[state=active]:bg-slate-900 data-[state=active]:text-white dark:data-[state=active]:bg-white dark:data-[state=active]:text-slate-900'
+              >
+                交易记录
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -162,6 +169,10 @@ export default function Home() {
 
           <TabsContent value='alerts' className='mt-0'>
             <AlertPanel stocks={stocks} />
+          </TabsContent>
+
+          <TabsContent value='trades' className='mt-0'>
+            <TradeBoard stocks={stocks} />
           </TabsContent>
         </Tabs>
       </section>
