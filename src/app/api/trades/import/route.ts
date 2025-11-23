@@ -78,7 +78,7 @@ export async function POST(request: Request) {
       stopRule: item.stopRule || null,
       isLuZhu: Boolean(item.isLuZhu),
     }))
-    .filter((item) => item.symbol && item.quantity && item.price);
+    .filter((item: any) => item.symbol && item.quantity && item.price);
 
   if (!prepared.length) {
     return NextResponse.json({ added: 0, records: [] });
@@ -91,5 +91,5 @@ export async function POST(request: Request) {
     orderBy: [{ tradedAt: 'desc' }, { createdAt: 'desc' }],
   });
 
-  return NextResponse.json({ added: result.count, records });
+  return NextResponse.json({ added: result.added, records });
 }
