@@ -1,19 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { StockCard } from './StockCard';
-import { AlertForm } from './AlertForm';
 import { StockData } from '../types/stock';
 import { useStockStore } from '../store/useStockStore';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+import { TradeBoard } from './TradeBoard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -52,7 +44,11 @@ interface StockSignalApiItem {
   };
 }
 
-export const StockList = ({ stocks, onStocksChange, showBBITrendSignal = true }: StockListProps) => {
+export const StockList = ({
+  stocks,
+  onStocksChange,
+  showBBITrendSignal = true,
+}: StockListProps) => {
   const [selectedStock, setSelectedStock] = useState<StockData | null>(null);
   const [showAddStockDialog, setShowAddStockDialog] = useState(false);
   const [isAddingStock, setIsAddingStock] = useState(false);
@@ -60,7 +56,6 @@ export const StockList = ({ stocks, onStocksChange, showBBITrendSignal = true }:
   const [newStockMarket, setNewStockMarket] = useState('HK');
   const [isLoadingSignals, setIsLoadingSignals] = useState(false);
   const [stocksWithSignals, setStocksWithSignals] = useState<StockData[]>(stocks);
-  const removeStock = useStockStore((state) => state.removeStock);
 
   const fetchSignals = useCallback(async () => {
     if (stocks.length === 0) return;
@@ -169,28 +164,6 @@ export const StockList = ({ stocks, onStocksChange, showBBITrendSignal = true }:
     }
   };
 
-  const handleDeleteStock = async (symbol: string) => {
-    removeStock(symbol);
-
-    try {
-      const response = await fetch(`/api/stocks?symbol=${symbol}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error('删除股票失败');
-      }
-
-      toast.success('删除股票成功');
-      return true;
-    } catch (error) {
-      console.error('删除股票失败:', error);
-      toast.error('删除股票失败');
-      onStocksChange();
-      return false;
-    }
-  };
-
   return (
     <div className='space-y-6'>
       <div className='rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm backdrop-blur sm:p-6 dark:border-slate-800 dark:bg-slate-900/80'>
@@ -200,7 +173,7 @@ export const StockList = ({ stocks, onStocksChange, showBBITrendSignal = true }:
               股票列表
             </h2>
             <p className='text-sm text-slate-500 dark:text-slate-300'>
-              快速浏览实时指标，点击卡片即可配置监控规则。
+              快速浏览实时指标，点击卡片可查看该股的交易记录。
             </p>
           </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end'>
@@ -302,30 +275,13 @@ export const StockList = ({ stocks, onStocksChange, showBBITrendSignal = true }:
                   />
                 </DialogTrigger>
                 {isDialogOpen && (
-                  <DialogContent className='mx-auto max-h-[90vh] w-[95vw] max-w-2xl overflow-y-auto rounded-3xl border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95'>
+                  <DialogContent className='mx-auto max-h-[90vh] w-[98vw] max-w-5xl overflow-y-auto rounded-3xl border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95'>
                     <DialogHeader>
-                      <DialogTitle>添加监控规则</DialogTitle>
-                      <DialogDescription>
-                        为 {selectedStock.name} ({selectedStock.symbol}) 设置监控规则
-                      </DialogDescription>
+                      <DialogTitle>
+                        交易记录 · {selectedStock.name} ({selectedStock.symbol})
+                      </DialogTitle>
                     </DialogHeader>
-                    <AlertForm
-                      stock={selectedStock}
-                      onClose={() => setSelectedStock(null)}
-                    />
-                    <DialogFooter className='mt-4 flex justify-end'>
-                      <Button
-                        variant='destructive'
-                        onClick={async () => {
-                          const success = await handleDeleteStock(stock.symbol);
-                          if (success) {
-                            setSelectedStock(null);
-                          }
-                        }}
-                      >
-                        删除股票
-                      </Button>
-                    </DialogFooter>
+                    <TradeBoard stocks={stocksWithSignals} focusSymbol={selectedStock.symbol} />
                   </DialogContent>
                 )}
               </Dialog>

@@ -152,6 +152,7 @@ model User {
   buySignalJThreshold   Float     @default(20.0)   // 买入信号J值阈值
   stocks                Stock[]
   monitors              Monitor[]
+  trades                TradeRecord[]
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
   sessions              Session[]
@@ -190,4 +191,26 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model TradeRecord {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  symbol          String
+  securityName    String?
+  side            String   // BUY / SELL
+  quantity        Int
+  price           Float
+  tradedAt        DateTime
+  note            String?
+  stopLossPrice   Float?
+  takeProfitPrice Float?
+  stopRule        String?  // whiteLine / yellowLine
+  isLuZhu         Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId, symbol])
+  @@unique([userId, symbol, side, price, quantity, tradedAt])
 }

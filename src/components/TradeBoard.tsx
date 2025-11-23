@@ -9,11 +9,12 @@ import { cn } from '@/lib/utils';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Textarea } from './ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
+import type { ChangeEvent } from 'react';
 
 interface TradeBoardProps {
   stocks: StockData[];
+  focusSymbol?: string;
 }
 
 const formatNumber = (value?: number) => {
@@ -21,21 +22,100 @@ const formatNumber = (value?: number) => {
   return value.toFixed(2);
 };
 
-export const TradeBoard = ({ stocks }: TradeBoardProps) => {
-  const { records, addRecord, removeRecord, importRecords } = useTradeRecords();
+const cleanCell = (raw: string) =>
+  raw?.replace(/^="?/, '').replace(/"?$/, '').trim();
+
+const normalizeSymbol = (code: string) => {
+  if (!code) return code;
+  const normalized = code.toUpperCase().trim();
+  if (normalized.includes('.')) return normalized;
+  if (normalized.length === 6) {
+    if (['6', '5'].includes(normalized[0])) return `${normalized}.SH`;
+    if (['0', '2', '3'].includes(normalized[0])) return `${normalized}.SZ`;
+  }
+  return normalized;
+};
+
+const parseTongDaXinText = (text: string): TradeRecord[] => {
+  if (!text) return [];
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (!lines.length) return [];
+
+  const rows = lines.map((line) => line.split('\t').map(cleanCell));
+  const header = rows[0] || [];
+  const indexMap = {
+    date: header.indexOf('发生日期'),
+    business: header.indexOf('业务名称'),
+    code: header.indexOf('证券代码'),
+    name: header.indexOf('证券名称'),
+    price: header.indexOf('成交均价'),
+    quantity: header.indexOf('成交数量'),
+  };
+
+  const requiredIndexes = Object.values(indexMap).every((v) => v >= 0);
+  if (!requiredIndexes) return [];
+
+  const allowedBusiness = ['证券买入清算', '证券卖出清算'];
+  const records: TradeRecord[] = [];
+
+  rows.slice(1).forEach((cells) => {
+    const business = cells[indexMap.business];
+    if (!allowedBusiness.includes(business)) return;
+    const date = cells[indexMap.date];
+    const code = cells[indexMap.code];
+    const price = Number(cells[indexMap.price] || 0);
+    const qty = Number(cells[indexMap.quantity] || 0);
+    if (!date || !code || !qty || !price) return;
+
+    const name = cells[indexMap.name];
+    records.push({
+      id: '',
+      symbol: normalizeSymbol(code),
+      securityName: name,
+      side: business === '证券买入清算' ? 'BUY' : 'SELL',
+      quantity: qty,
+      price,
+      tradedAt: `${date} 15:00`,
+      note: name ? `导入：通达信对账单（${name}）` : '导入：通达信对账单',
+    });
+  });
+
+  return records;
+};
+
+const parseTongDaXinFile = async (file: File) => {
+  const buffer = await file.arrayBuffer();
+  let text = '';
+  try {
+    text = new TextDecoder('gb18030').decode(buffer);
+  } catch (error) {
+    console.warn('TextDecoder 不支持 gb18030，尝试 UTF-8');
+    text = new TextDecoder().decode(buffer);
+  }
+  return parseTongDaXinText(text);
+};
+
+export const TradeBoard = ({ stocks, focusSymbol }: TradeBoardProps) => {
+  const { records, addRecord, removeRecord, importRecords, updateRecord } = useTradeRecords();
+  const [filterSymbol, setFilterSymbol] = useState('');
   const [symbol, setSymbol] = useState('');
   const [side, setSide] = useState<'BUY' | 'SELL'>('BUY');
   const [quantity, setQuantity] = useState(100);
   const [price, setPrice] = useState('');
   const [tradedAt, setTradedAt] = useState('');
   const [note, setNote] = useState('');
+  const [securityName, setSecurityName] = useState('');
   const [stopLossPrice, setStopLossPrice] = useState('');
   const [takeProfitPrice, setTakeProfitPrice] = useState('');
   const [stopRule, setStopRule] = useState<StopRule | undefined>(undefined);
-  const [importText, setImportText] = useState('');
+  const [excelImporting, setExcelImporting] = useState(false);
   const notifiedIds = useRef<Set<string>>(new Set());
   const [hasPushDeer, setHasPushDeer] = useState(false);
   const silentWarned = useRef(false);
+  const watchedSymbols = useRef<Set<string>>(new Set());
 
   const stockMap = useMemo(() => {
     const map = new Map<string, StockData>();
@@ -43,11 +123,47 @@ export const TradeBoard = ({ stocks }: TradeBoardProps) => {
     return map;
   }, [stocks]);
 
+  useEffect(() => {
+    if (focusSymbol) {
+      setFilterSymbol(focusSymbol.toUpperCase());
+    }
+  }, [focusSymbol]);
+
+  useEffect(() => {
+    watchedSymbols.current = new Set(stocks.map((s) => s.symbol));
+  }, [stocks]);
+
+  const ensureWatch = useCallback(async (symbol: string) => {
+    const normalized = normalizeSymbol(symbol);
+    if (watchedSymbols.current.has(normalized)) return;
+    watchedSymbols.current.add(normalized);
+    const [, market] = normalized.split('.');
+    try {
+      const response = await fetch('/api/stocks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          symbol: normalized,
+          market: market || '',
+        }),
+      });
+      if (!response.ok) {
+        throw new Error('自动关注失败');
+      }
+      toast.success(`已自动关注 ${normalized}`);
+    } catch (error) {
+      console.error('自动关注失败', error);
+      watchedSymbols.current.delete(normalized);
+      toast.error(`关注 ${normalized} 失败`);
+    }
+  }, []);
+
   const resetForm = () => {
     setSymbol('');
     setPrice('');
     setTradedAt('');
     setNote('');
+    setSecurityName('');
     setStopLossPrice('');
     setTakeProfitPrice('');
     setStopRule(undefined);
@@ -55,7 +171,7 @@ export const TradeBoard = ({ stocks }: TradeBoardProps) => {
     setQuantity(100);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!symbol || !price || !tradedAt) {
       toast.error('请填写必填字段：代码 / 价格 / 日期时间');
       return;
@@ -64,6 +180,9 @@ export const TradeBoard = ({ stocks }: TradeBoardProps) => {
     const record: TradeRecord = {
       id: crypto.randomUUID(),
       symbol: symbol.trim().toUpperCase(),
+      securityName:
+        securityName.trim() ||
+        stockMap.get(symbol.trim().toUpperCase())?.name,
       side,
       quantity,
       price: Number(price),
@@ -74,45 +193,43 @@ export const TradeBoard = ({ stocks }: TradeBoardProps) => {
       stopRule,
     };
 
-    addRecord(record);
-    toast.success('已添加交易记录');
-    resetForm();
+    const added = await addRecord(record);
+    if (added) {
+      toast.success('已添加交易记录');
+      resetForm();
+    } else {
+      toast.info('记录已存在，未重复添加');
+    }
+    ensureWatch(record.symbol);
   };
 
-  const handleImport = () => {
-    if (!importText.trim()) return;
-    const lines = importText
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean);
-
-    const parsed: TradeRecord[] = [];
-    lines.forEach((line) => {
-      const parts = line.split(',');
-      if (parts.length < 4) return;
-      const [rawSymbol, rawSide, qty, px, datetime, sl, tp] = parts.map((p) =>
-        p.trim(),
-      );
-      parsed.push({
-        id: crypto.randomUUID(),
-        symbol: rawSymbol.toUpperCase(),
-        side: rawSide.toUpperCase() === 'SELL' ? 'SELL' : 'BUY',
-        quantity: Number(qty) || 0,
-        price: Number(px) || 0,
-        tradedAt: datetime || new Date().toISOString(),
-        stopLossPrice: sl ? Number(sl) : undefined,
-        takeProfitPrice: tp ? Number(tp) : undefined,
-      });
-    });
-
-    if (parsed.length === 0) {
-      toast.error('未解析出有效记录，格式示例：600519.SH,BUY,100,1800,2024-11-21 10:30,1750,1900');
-      return;
+  const handleExcelImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setExcelImporting(true);
+    try {
+      const parsed = await parseTongDaXinFile(file);
+      if (!parsed.length) {
+        toast.error('未解析到交易数据，确认文件为通达信对账单');
+        return;
+      }
+      const uniqueSymbols = Array.from(new Set(parsed.map((p) => p.symbol)));
+      uniqueSymbols.forEach(ensureWatch);
+      const { added, success, message } = await importRecords(parsed);
+      if (!success) {
+        toast.error(message || '导入失败，请重试');
+      } else if (added === 0) {
+        toast.info('没有新记录，已全部去重');
+      } else {
+        toast.success(`通达信导入完成，新增 ${added} 条记录（已自动去重）`);
+      }
+    } catch (error) {
+      console.error('通达信导入失败', error);
+      toast.error('通达信对账单解析失败');
+    } finally {
+      setExcelImporting(false);
+      event.target.value = '';
     }
-
-    importRecords(parsed);
-    toast.success(`已导入 ${parsed.length} 条记录`);
-    setImportText('');
   };
 
   const sendPushDeer = useCallback(async (title: string, desp: string) => {
@@ -162,6 +279,7 @@ export const TradeBoard = ({ stocks }: TradeBoardProps) => {
       if (minutesToClose > 10 || minutesToClose < 0) return;
 
       records.forEach((record) => {
+        if (record.isLuZhu) return; // 已完结的订单不再提醒
         if (notifiedIds.current.has(record.id)) return;
         const stock = stockMap.get(record.symbol);
         const currentPrice = stock?.price ?? record.price;
@@ -233,9 +351,17 @@ export const TradeBoard = ({ stocks }: TradeBoardProps) => {
             导入、记录并跟踪每笔订单，收盘前 10 分钟自动提醒需处理的单子。
           </p>
         </div>
-        <Badge className='rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'>
-          本地存储，表单导入
-        </Badge>
+        <div className='flex items-center gap-2'>
+          <Input
+            placeholder='按股票过滤（如 600570 或 600570.SH）'
+            value={filterSymbol}
+            onChange={(e) => setFilterSymbol(e.target.value)}
+            className='h-10 w-56 rounded-xl'
+          />
+          <Badge className='rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'>
+            本地存储，表单导入
+          </Badge>
+        </div>
       </div>
 
       <div className='mt-4 grid gap-4 lg:grid-cols-2'>
@@ -280,6 +406,12 @@ export const TradeBoard = ({ stocks }: TradeBoardProps) => {
               placeholder='成交价'
               value={price}
               onChange={(e) => setPrice(e.target.value)}
+              className='rounded-lg'
+            />
+            <Input
+              placeholder='证券名称（可选）'
+              value={securityName}
+              onChange={(e) => setSecurityName(e.target.value)}
               className='rounded-lg'
             />
             <Input
@@ -336,37 +468,43 @@ export const TradeBoard = ({ stocks }: TradeBoardProps) => {
 
         <div className='rounded-xl border border-slate-200 bg-white/70 p-4 dark:border-slate-800 dark:bg-slate-900/70'>
           <h4 className='text-sm font-semibold text-slate-700 dark:text-slate-200'>
-            批量导入
+            对账单导入
           </h4>
-          <p className='mt-1 text-xs text-slate-500 dark:text-slate-400'>
-            每行格式：代码,side,数量,价格,时间,止损价,止盈价
-          </p>
-          <Textarea
-            value={importText}
-            onChange={(e) => setImportText(e.target.value)}
-            rows={6}
-            className='mt-2 rounded-lg'
-            placeholder='600519.SH,BUY,100,1800,2024-11-21 10:30,1750,1900'
-          />
-          <Button
-            variant='outline'
-            className='mt-3 w-full rounded-xl'
-            onClick={handleImport}
-          >
-            导入记录
-          </Button>
+          <div className='mt-2 space-y-3 rounded-2xl border border-slate-200 bg-gradient-to-br from-blue-50 via-white to-white p-4 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:via-slate-900 dark:to-slate-900/60'>
+            <div className='flex items-center justify-between text-sm font-semibold text-slate-700 dark:text-slate-200'>
+              <span>通达信对账单（.xls/.txt）</span>
+              <Badge className='rounded-full bg-blue-100 px-3 py-1 text-blue-700 shadow-sm dark:bg-blue-900/40 dark:text-blue-200'>
+                自动去重 + 自动关注
+              </Badge>
+            </div>
+            <label className='block rounded-xl border border-slate-200 bg-white/80 px-4 py-3 text-sm shadow-inner transition hover:border-blue-400 dark:border-slate-700 dark:bg-slate-900/70 dark:hover:border-blue-600'>
+              <div className='flex items-center gap-3 text-slate-700 dark:text-slate-200'>
+                <span className='inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm'>
+                  选择文件
+                </span>
+                <span className='text-sm text-slate-500 dark:text-slate-400'>
+                  未选择任何文件
+                </span>
+              </div>
+              <Input
+                type='file'
+                accept='.xls,.txt'
+                onChange={handleExcelImport}
+                disabled={excelImporting}
+                className='mt-2 hidden'
+              />
+            </label>
+            <p className='text-[12px] leading-relaxed text-slate-600 dark:text-slate-300'>
+              仅提取“证券买入清算/证券卖出清算”，编码自动识别 GB18030 / UTF-8，导入后自动去重并把未关注的股票加入关注列表。
+            </p>
+          </div>
         </div>
       </div>
 
       <div className='mt-5 space-y-3'>
-        <div className='flex items-center justify-between'>
-          <h4 className='text-sm font-semibold text-slate-700 dark:text-slate-200'>
-            最近交易
-          </h4>
-          <span className='text-xs text-slate-500 dark:text-slate-400'>
-            {records.length} 笔
-          </span>
-        </div>
+        <h4 className='text-sm font-semibold text-slate-700 dark:text-slate-200'>
+          最近交易
+        </h4>
 
         {records.length === 0 ? (
           <div className='flex min-h-[120px] items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-sm text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300'>
@@ -374,13 +512,51 @@ export const TradeBoard = ({ stocks }: TradeBoardProps) => {
           </div>
         ) : (
           <div className='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3'>
-            {records.map((record) => {
+            {records
+              .filter((record) => {
+                if (!filterSymbol.trim()) return true;
+                const key = filterSymbol.trim().toUpperCase();
+                return (
+                  record.symbol.toUpperCase().includes(key) ||
+                  (record.securityName || '').toUpperCase().includes(key)
+                );
+              })
+              .map((record) => {
               const stock = stockMap.get(record.symbol);
               const currentPrice = stock?.price ?? record.price;
               const pnl =
                 record.side === 'BUY'
                   ? (currentPrice - record.price) * record.quantity
                   : (record.price - currentPrice) * record.quantity;
+              const handleStopChange = (
+                field: 'stopLossPrice' | 'takeProfitPrice',
+                value: string,
+              ) => {
+                updateRecord(record.id, (prev) => ({
+                  ...prev,
+                  [field]: value ? Number(value) : undefined,
+                }));
+              };
+
+              const handleStopRuleChange = (value: StopRule | undefined) => {
+                updateRecord(record.id, (prev) => ({
+                  ...prev,
+                  stopRule: value,
+                }));
+              };
+
+              const displayName =
+                record.securityName ||
+                stock?.name ||
+                record.note?.replace(/导入：通达信对账单（(.+)）/, '$1');
+
+              const toggleLuZhu = () => {
+                updateRecord(record.id, (prev) => ({
+                  ...prev,
+                  isLuZhu: !prev.isLuZhu,
+                }));
+              };
+
               return (
                 <div
                   key={record.id}
@@ -388,23 +564,30 @@ export const TradeBoard = ({ stocks }: TradeBoardProps) => {
                 >
                   <div className='flex items-center justify-between'>
                     <div>
-                      <p className='text-sm font-semibold text-slate-800 dark:text-slate-100'>
-                        {record.symbol}
+                      <p className='text-xs text-slate-500 dark:text-slate-400'>
+                        {displayName}
                       </p>
                       <p className='text-xs text-slate-500 dark:text-slate-400'>
                         {record.tradedAt}
                       </p>
                     </div>
-                    <Badge
-                      className={cn(
-                        'rounded-full',
-                        record.side === 'BUY'
-                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200'
-                          : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200',
+                    <div className='flex items-center gap-2'>
+                      {record.isLuZhu && (
+                        <Badge className='rounded-full bg-slate-200 px-2 py-1 text-[11px] text-slate-700 shadow-sm dark:bg-slate-800 dark:text-slate-200'>
+                          卤煮 · 已完结
+                        </Badge>
                       )}
-                    >
-                      {record.side === 'BUY' ? '买入' : '卖出'}
-                    </Badge>
+                      <Badge
+                        className={cn(
+                          'rounded-full',
+                          record.side === 'BUY'
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200'
+                            : 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200',
+                        )}
+                      >
+                        {record.side === 'BUY' ? '买入' : '卖出'}
+                      </Badge>
+                    </div>
                   </div>
                   <div className='mt-2 grid grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-300'>
                     <div className='rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60'>
@@ -423,8 +606,8 @@ export const TradeBoard = ({ stocks }: TradeBoardProps) => {
                         className={cn(
                           'font-semibold',
                           pnl >= 0
-                            ? 'text-emerald-600 dark:text-emerald-200'
-                            : 'text-rose-600 dark:text-rose-200',
+                            ? 'text-rose-600 dark:text-rose-300'
+                            : 'text-emerald-600 dark:text-emerald-200',
                         )}
                       >
                         {formatNumber(currentPrice)} · {pnl.toFixed(2)}
@@ -458,14 +641,88 @@ export const TradeBoard = ({ stocks }: TradeBoardProps) => {
                       </span>
                     )}
                   </div>
-                  <Button
-                    variant='ghost'
-                    size='sm'
-                    className='mt-2 w-full rounded-lg text-xs text-slate-500 hover:text-rose-600 dark:text-slate-300 dark:hover:text-rose-300'
-                    onClick={() => removeRecord(record.id)}
-                  >
-                    删除这笔记录
-                  </Button>
+                  <div className='mt-2 grid grid-cols-1 gap-2 text-xs sm:grid-cols-3'>
+                    <div className='space-y-1'>
+                      <p className='text-[11px] text-slate-500 dark:text-slate-400'>
+                        止损价
+                      </p>
+                      <Input
+                        type='number'
+                        value={record.stopLossPrice ?? ''}
+                        onChange={(e) =>
+                          handleStopChange('stopLossPrice', e.target.value)
+                        }
+                        placeholder='未设置'
+                        className='rounded-lg'
+                      />
+                    </div>
+                    <div className='space-y-1'>
+                      <p className='text-[11px] text-slate-500 dark:text-slate-400'>
+                        止盈价
+                      </p>
+                      <Input
+                        type='number'
+                        value={record.takeProfitPrice ?? ''}
+                        onChange={(e) =>
+                          handleStopChange('takeProfitPrice', e.target.value)
+                        }
+                        placeholder='未设置'
+                        className='rounded-lg'
+                      />
+                    </div>
+                    <div className='space-y-1'>
+                      <p className='text-[11px] text-slate-500 dark:text-slate-400'>
+                        均线止损
+                      </p>
+                      <Tabs
+                        value={record.stopRule || 'none'}
+                        onValueChange={(val) =>
+                          handleStopRuleChange(
+                            val === 'none' ? undefined : (val as StopRule),
+                          )
+                        }
+                        className='w-full'
+                      >
+                        <TabsList className='grid grid-cols-3 rounded-lg bg-slate-100 p-1 dark:bg-slate-800'>
+                          <TabsTrigger value='none' className='rounded-md text-[11px]'>
+                            无
+                          </TabsTrigger>
+                          <TabsTrigger
+                            value='whiteLine'
+                            className='rounded-md text-[11px]'
+                          >
+                            白线
+                          </TabsTrigger>
+                          <TabsTrigger
+                            value='yellowLine'
+                            className='rounded-md text-[11px]'
+                          >
+                            黄线
+                          </TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                    </div>
+                  </div>
+                  <div className='mt-3 flex flex-wrap items-center justify-between gap-2'>
+                    {record.side === 'BUY' && (
+                      <Button
+                        size='sm'
+                        variant={record.isLuZhu ? 'outline' : 'secondary'}
+                        className='rounded-lg text-[12px]'
+                        onClick={toggleLuZhu}
+                      >
+                        {record.isLuZhu ? '恢复进行中' : '标记为卤煮'}
+                      </Button>
+                    )}
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      className='rounded-lg text-xs text-rose-600 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-900/30'
+                      onClick={() => removeRecord(record.id)}
+                    >
+                      删除
+                    </Button>
+                  </div>
                 </div>
               );
             })}
