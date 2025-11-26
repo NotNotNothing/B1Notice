@@ -9,7 +9,7 @@ cmds = [
 ]
 
 [start]
-cmd = "node server.js"
+cmd = "pnpm run start"
 
 [variables]
 NODE_ENV = "production"
