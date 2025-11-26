@@ -1,9 +1,8 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "python3", "pkg-config", "postgresql"]
+nixPkgs = ["nodejs_20", "python3", "pkg-config", "postgresql", "pnpm"]
 
 [phases.build]
 cmds = [
-  "corepack enable pnpm",
   "pnpm install --frozen-lockfile",
   "npx prisma generate --schema ./prisma/pgsql/schema.prisma",
   "pnpm run build"
