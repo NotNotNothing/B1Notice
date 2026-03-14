@@ -6,6 +6,13 @@ interface KDJResult {
   j: number;
 }
 
+export interface KDJSeriesPoint {
+  timestamp: string;
+  k: number;
+  d: number;
+  j: number;
+}
+
 interface BBIResult {
   bbi: number;
   ma3: number;
@@ -36,6 +43,7 @@ export interface ZhixingTrendOptions {
   m2?: number;
   m3?: number;
   m4?: number;
+  seriesLimit?: number;
 }
 
 export function calculateKDJ(
@@ -44,35 +52,72 @@ export function calculateKDJ(
   k: number = 3,
   d: number = 3
 ): KDJResult {
-  if (klineData.length < period) {
+  if (!klineData.length) {
     return { k: 50, d: 50, j: 50 };
   }
 
-  // 计算RSV
-  const currentData = klineData[klineData.length - 1];
-  const periodData = klineData.slice(-period);
+  const series = calculateKDJSeries(klineData, period, k, d);
+  if (!series.length) {
+    return { k: 50, d: 50, j: 50 };
+  }
 
-  const highestHigh = Math.max(...periodData.map(d => d.high));
-  const lowestLow = Math.min(...periodData.map(d => d.low));
-
-  const rsv = ((currentData.close - lowestLow) / (highestHigh - lowestLow)) * 100;
-
-  // 计算K值
-  const prevK: number = klineData.length > period ? calculateKDJ(klineData.slice(0, -1), period, k, d).k : 50;
-  const currentK: number = (2 / 3) * prevK + (1 / 3) * rsv;
-
-  // 计算D值
-  const prevD: number = klineData.length > period ? calculateKDJ(klineData.slice(0, -1), period, k, d).d : 50;
-  const currentD: number = (2 / 3) * prevD + (1 / 3) * currentK;
-
-  // 计算J值
-  const currentJ: number = 3 * currentK - 2 * currentD;
-
+  const latest = series[series.length - 1];
   return {
-    k: Number(currentK.toFixed(2)),
-    d: Number(currentD.toFixed(2)),
-    j: Number(currentJ.toFixed(2)),
+    k: latest.k,
+    d: latest.d,
+    j: latest.j,
   };
+}
+
+function calculateSMASeries(values: number[], period: number, weight: number): number[] {
+  if (values.length === 0) return [];
+
+  const result: number[] = [];
+  let sma = values[0];
+  result.push(sma);
+
+  for (let i = 1; i < values.length; i += 1) {
+    sma = (sma * (period - weight) + values[i] * weight) / period;
+    result.push(sma);
+  }
+
+  return result;
+}
+
+export function calculateKDJSeries(
+  klineData: KLineData[],
+  period: number = 9,
+  k: number = 3,
+  d: number = 3
+): KDJSeriesPoint[] {
+  if (!klineData.length) return [];
+
+  const rsvSeries = klineData.map((_, index) => {
+    const startIndex = Math.max(0, index - period + 1);
+    const periodData = klineData.slice(startIndex, index + 1);
+    const highestHigh = Math.max(...periodData.map((item) => item.high));
+    const lowestLow = Math.min(...periodData.map((item) => item.low));
+    const currentClose = klineData[index].close;
+
+    if (highestHigh === lowestLow) return 50;
+    return ((currentClose - lowestLow) / (highestHigh - lowestLow)) * 100;
+  });
+
+  const kSeries = calculateSMASeries(rsvSeries, k, 1);
+  const dSeries = calculateSMASeries(kSeries, d, 1);
+
+  return klineData.map((item, index) => {
+    const kValue = kSeries[index];
+    const dValue = dSeries[index];
+    const jValue = 3 * kValue - 2 * dValue;
+
+    return {
+      timestamp: item.timestamp,
+      k: Number(kValue.toFixed(2)),
+      d: Number(dValue.toFixed(2)),
+      j: Number(jValue.toFixed(2)),
+    };
+  });
 }
 
 function calculateMA(data: KLineData[], period: number): number {
@@ -94,11 +139,8 @@ function calculateMASeries(values: number[], period: number): (number | null)[] 
       sum -= values[i - period];
     }
 
-    if (i >= period - 1) {
-      result.push(sum / period);
-    } else {
-      result.push(null);
-    }
+    const divisor = i >= period ? period : i + 1;
+    result.push(sum / divisor);
   }
 
   return result;
@@ -201,6 +243,7 @@ const DEFAULT_ZHIXING_OPTIONS: Required<ZhixingTrendOptions> = {
   m2: 28,
   m3: 57,
   m4: 114,
+  seriesLimit: 120,
 };
 
 function normalizePeriod(value: number, fallback: number): number {
@@ -224,6 +267,7 @@ function buildZhixingSeries(
     m2: normalizePeriod(options?.m2 ?? DEFAULT_ZHIXING_OPTIONS.m2, DEFAULT_ZHIXING_OPTIONS.m2),
     m3: normalizePeriod(options?.m3 ?? DEFAULT_ZHIXING_OPTIONS.m3, DEFAULT_ZHIXING_OPTIONS.m3),
     m4: normalizePeriod(options?.m4 ?? DEFAULT_ZHIXING_OPTIONS.m4, DEFAULT_ZHIXING_OPTIONS.m4),
+    seriesLimit: options?.seriesLimit ?? DEFAULT_ZHIXING_OPTIONS.seriesLimit,
   };
 
   const maxPeriod = Math.max(settings.m1, settings.m2, settings.m3, settings.m4);
@@ -286,7 +330,7 @@ export function calculateZhixingTrend(
     return null;
   }
 
-  const { whiteSeriesRaw, whiteSeries, yellowSeries } = seriesContext;
+  const { whiteSeriesRaw, whiteSeries, yellowSeries, settings } = seriesContext;
   const lastIndex = yellowSeries.length - 1;
   const currentYellow = yellowSeries[lastIndex];
   const currentWhite = whiteSeries[lastIndex];
@@ -342,10 +386,10 @@ export function calculateZhixingTrend(
     }
   }
 
-  const maxSeriesLength = 120;
+  const maxSeriesLength = settings.seriesLimit;
   const trimmedSeries =
-    points.length > maxSeriesLength
-      ? points.slice(points.length - maxSeriesLength)
+    Number.isFinite(maxSeriesLength) && maxSeriesLength > 0
+      ? points.slice(Math.max(0, points.length - Math.floor(maxSeriesLength)))
       : points;
 
   return {

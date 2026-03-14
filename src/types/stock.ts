@@ -52,15 +52,14 @@ export interface StockData {
   buySignal?: {
     hasBuySignal: boolean;
     conditions: {
+      priceAboveYellow: boolean;
       whiteAboveYellow: boolean;
       jBelowThreshold: boolean;
-      volumeContraction: boolean;
     };
     whiteLine: number;
     yellowLine: number;
     jValue: number;
-    volume: number;
-    avgVolume: number;
+    price: number;
     jThreshold?: number;
   };
 }

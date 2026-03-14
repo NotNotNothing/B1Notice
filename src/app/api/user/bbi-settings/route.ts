@@ -20,6 +20,7 @@ export async function GET(request: Request) {
       select: {
         showBBITrendSignal: true,
         buySignalJThreshold: true,
+        b1NotifyEnabled: true,
       },
     });
 
@@ -30,7 +31,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       showBBITrendSignal: user.showBBITrendSignal,
-      buySignalJThreshold: user.buySignalJThreshold
+      buySignalJThreshold: user.buySignalJThreshold,
+      b1NotifyEnabled: user.b1NotifyEnabled,
     });
   } catch (error) {
     console.error('获取BBI趋势信号设置失败:', error);
@@ -54,11 +56,29 @@ export async function POST(request: Request) {
     const body = await request.json();
     console.log('Request body:', body);
 
-    const { showBBITrendSignal, buySignalJThreshold } = body;
+    const { showBBITrendSignal, buySignalJThreshold, b1NotifyEnabled } = body;
 
-    if (typeof showBBITrendSignal !== 'boolean') {
+    if (
+      showBBITrendSignal === undefined &&
+      buySignalJThreshold === undefined &&
+      b1NotifyEnabled === undefined
+    ) {
+      return NextResponse.json(
+        { error: '请提供要更新的设置项' },
+        { status: 400 },
+      );
+    }
+
+    if (showBBITrendSignal !== undefined && typeof showBBITrendSignal !== 'boolean') {
       return NextResponse.json(
         { error: '请提供有效的BBI趋势信号设置值' },
+        { status: 400 }
+      );
+    }
+
+    if (b1NotifyEnabled !== undefined && typeof b1NotifyEnabled !== 'boolean') {
+      return NextResponse.json(
+        { error: '请提供有效的B1通知设置值' },
         { status: 400 }
       );
     }
@@ -83,9 +103,15 @@ export async function POST(request: Request) {
     }
 
     // 更新设置
-    const updateData: any = {
-      showBBITrendSignal,
-    };
+    const updateData: any = {};
+
+    if (showBBITrendSignal !== undefined) {
+      updateData.showBBITrendSignal = showBBITrendSignal;
+    }
+
+    if (b1NotifyEnabled !== undefined) {
+      updateData.b1NotifyEnabled = b1NotifyEnabled;
+    }
 
     if (buySignalJThreshold !== undefined) {
       updateData.buySignalJThreshold = buySignalJThreshold;
@@ -102,7 +128,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       message: '设置更新成功',
       showBBITrendSignal: updatedUser.showBBITrendSignal,
-      buySignalJThreshold: updatedUser.buySignalJThreshold
+      buySignalJThreshold: updatedUser.buySignalJThreshold,
+      b1NotifyEnabled: updatedUser.b1NotifyEnabled,
     });
   } catch (error) {
     console.error('更新BBI趋势信号设置失败:', error);

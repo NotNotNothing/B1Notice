@@ -7,14 +7,18 @@
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
 import { prisma } from './prisma';
-import { getLongBridgeClient, KLINE_PERIOD } from '../server/longbridge/client';
 import schedule from 'node-schedule';
-import { LongBridgeClient } from '../server/longbridge/client';
-import { sendCanBuyMessageByPushDeer } from '@/server/pushdeer';
+import { sendB1SignalListByPushDeer, sendCanBuyMessageByPushDeer } from '@/server/pushdeer';
 import { KDJ_TYPE } from '@/utils';
 import { isProd } from './utils';
 import { detectSellSignal } from '../utils/sellSignals';
 import { KLineData } from '../types/stock';
+import { 
+  getQuoteProvider,
+  IQuoteProvider,
+  DataSourceType,
+  KLINE_PERIOD 
+} from '@/server/datasource';
 
 interface Monitor {
   id: string;
@@ -51,11 +55,42 @@ const logger = {
 };
 
 export class MonitorScheduler {
-  private longBridgeClient: LongBridgeClient;
+  private longbridgeProvider: IQuoteProvider | null = null;
+  private akshareProvider: IQuoteProvider | null = null;
 
   constructor() {
-    this.longBridgeClient = getLongBridgeClient();
+    this.initializeProviders();
     this.fetchAndStoreStockData(['SH', 'SZ', 'HK', 'US']);
+  }
+
+  private async initializeProviders(): Promise<void> {
+    try {
+      this.longbridgeProvider = await getQuoteProvider('longbridge');
+    } catch (error) {
+      console.error('[Scheduler] Longbridge 数据源初始化失败:', error);
+    }
+
+    try {
+      this.akshareProvider = await getQuoteProvider('akshare');
+    } catch (error) {
+      console.error('[Scheduler] AKShare 数据源初始化失败:', error);
+    }
+  }
+
+  private async getProviderForMarket(market: string): Promise<IQuoteProvider> {
+    // A 股默认使用 AKShare
+    if (market === 'SH' || market === 'SZ') {
+      if (!this.akshareProvider) {
+        this.akshareProvider = await getQuoteProvider('akshare');
+      }
+      return this.akshareProvider;
+    }
+
+    // 港股和美股使用 Longbridge
+    if (!this.longbridgeProvider) {
+      this.longbridgeProvider = await getQuoteProvider('longbridge');
+    }
+    return this.longbridgeProvider;
   }
 
   private async checkPrice(symbol: string): Promise<number | null> {
@@ -159,10 +194,9 @@ export class MonitorScheduler {
     }
   }
 
-  private async checkSellSignal(symbol: string): Promise<number | null> {
+  private async checkSellSignal(symbol: string, provider: IQuoteProvider): Promise<number | null> {
     try {
-      // 获取足够的K线数据用于卖出信号检测（至少180个交易日）
-      const klineData = await this.longBridgeClient.getKLineData(symbol, 240, KLINE_PERIOD.DAY);
+      const klineData = await provider.getKLineData(symbol, 240, KLINE_PERIOD.DAY);
 
       if (klineData.length < 30) {
         logger.error(`K线数据不足，无法检测卖出信号: ${symbol}`);
@@ -178,7 +212,6 @@ export class MonitorScheduler {
         volume: k.volume,
       } as KLineData)));
 
-      // 返回1表示有卖出信号，0表示无卖出信号
       return sellSignalResult.isSellSignal ? 1 : 0;
     } catch (error) {
       logger.error(`检测${symbol}卖出信号失败:`, error);
@@ -186,7 +219,7 @@ export class MonitorScheduler {
     }
   }
 
-  private async getCurrentValue(monitor: Monitor): Promise<number | null> {
+  private async getCurrentValue(monitor: Monitor, provider?: IQuoteProvider): Promise<number | null> {
     switch (monitor.type) {
       case 'PRICE':
         return this.checkPrice(monitor.stock.symbol);
@@ -203,7 +236,14 @@ export class MonitorScheduler {
       case 'BBI_BELOW_CONSECUTIVE':
         return this.checkBBIConsecutive(monitor.stock.symbol, false);
       case 'SELL_SIGNAL':
-        return this.checkSellSignal(monitor.stock.symbol);
+        if (!provider) {
+          const stock = await prisma.stock.findFirst({
+            where: { id: monitor.stockId },
+            select: { market: true },
+          });
+          provider = await this.getProviderForMarket(stock?.market || '');
+        }
+        return this.checkSellSignal(monitor.stock.symbol, provider);
       default:
         return null;
     }
@@ -491,7 +531,8 @@ export class MonitorScheduler {
 
   private async fetchAndStoreStockData(markets: string[]) {
     try {
-      // 获取所有需要监控的股票
+      await this.initializeProviders();
+      
       const stocks = await prisma.stock.findMany({
         where: {
           market: { in: markets },
@@ -504,33 +545,29 @@ export class MonitorScheduler {
 
       for (const stock of stocks) {
         try {
-          logger.info(`开始处理股票: ${stock.symbol}`, { stockId: stock.id });
+          logger.info(`开始处理股票: ${stock.symbol}`, { stockId: stock.id, market: stock.market });
 
-          // 获取股票报价
-          const quote = await this.longBridgeClient.getQuote(stock.symbol);
+          const provider = await this.getProviderForMarket(stock.market);
+          
+          const quote = await provider.getQuote(stock.symbol);
           if (!quote) {
             logger.error(`获取股票${stock.symbol}报价失败`);
             continue;
           }
 
-          // 获取日线KDJ
-          const dailyKdj = await this.longBridgeClient.calculateKDJ(
+          const dailyKdj = await provider.calculateKDJ(
             stock.symbol,
             KLINE_PERIOD.DAY,
           );
 
-          // 获取周线KDJ
-          const weeklyKdj = await this.longBridgeClient.calculateKDJ(
+          const weeklyKdj = await provider.calculateKDJ(
             stock.symbol,
             KLINE_PERIOD.WEEK,
           );
 
-          // 获取BBI指标
-          const bbiData = await this.longBridgeClient.calculateBBI(stock.symbol);
+          const bbiData = await provider.calculateBBI(stock.symbol);
 
-          // 获取知行多空趋势线
-          const zhixingTrendData =
-            await this.longBridgeClient.calculateZhixingTrend(stock.symbol);
+          const zhixingTrendData = await provider.calculateZhixingTrend(stock.symbol);
 
           if (!dailyKdj.length || !weeklyKdj.length) {
             logger.error(`获取股票${stock.symbol}KDJ数据失败`);
@@ -846,6 +883,7 @@ export class MonitorScheduler {
 
       if (monitorsToCheck.length === 0) {
         logger.info('没有需要执行的监控任务', { markets });
+        await this.notifyB1Signals(markets);
         return;
       }
 
@@ -863,8 +901,112 @@ export class MonitorScheduler {
           ),
         ),
       );
+
+      await this.notifyB1Signals(markets);
     } catch (error) {
       logger.error(`市场监控任务执行失败`, error);
+    }
+  }
+
+  private async notifyB1Signals(markets: string[]) {
+    try {
+      const users = await prisma.user.findMany({
+        where: {
+          b1NotifyEnabled: true,
+          stocks: { some: { market: { in: markets } } },
+        },
+        select: {
+          id: true,
+          pushDeerKey: true,
+          buySignalJThreshold: true,
+          b1LastNotifiedAt: true,
+          stocks: {
+            where: { market: { in: markets } },
+            include: {
+              quotes: {
+                orderBy: { createdAt: 'desc' },
+                take: 1,
+                include: {
+                  dailyKdj: true,
+                  zhixingTrend: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!users.length) {
+        return;
+      }
+
+      const now = new Date();
+
+      for (const user of users) {
+        if (!user.pushDeerKey) {
+          logger.info('用户未配置 PushDeer Key，跳过B1通知', { userId: user.id });
+          continue;
+        }
+
+        if (user.b1LastNotifiedAt) {
+          const hoursSinceLastNotification =
+            (now.getTime() - new Date(user.b1LastNotifiedAt).getTime()) /
+            (1000 * 60 * 60);
+          if (hoursSinceLastNotification < 1) {
+            continue;
+          }
+        }
+
+        const matched = user.stocks.flatMap((stock) => {
+          const quote = stock.quotes[0];
+          const kdj = quote?.dailyKdj;
+          const trend = quote?.zhixingTrend;
+          if (!quote || !kdj || !trend) {
+            return [];
+          }
+
+          const price = quote.price ?? 0;
+          if (!Number.isFinite(price)) {
+            return [];
+          }
+
+          const priceAboveYellow = price > trend.yellowLine;
+          const whiteAboveYellow = trend.whiteLine > trend.yellowLine;
+          const jBelowThreshold = kdj.j < user.buySignalJThreshold;
+
+          if (priceAboveYellow && whiteAboveYellow && jBelowThreshold) {
+            return [
+              {
+                symbol: stock.symbol,
+                name: stock.name,
+                price,
+                j: kdj.j,
+                whiteLine: trend.whiteLine,
+                yellowLine: trend.yellowLine,
+              },
+            ];
+          }
+
+          return [];
+        });
+
+        if (!matched.length) {
+          continue;
+        }
+
+        await sendB1SignalListByPushDeer(
+          matched,
+          user.buySignalJThreshold,
+          user.pushDeerKey,
+        );
+
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { b1LastNotifiedAt: now },
+        });
+      }
+    } catch (error) {
+      logger.error('执行B1通知失败', error);
     }
   }
 

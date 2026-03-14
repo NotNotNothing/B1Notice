@@ -57,7 +57,7 @@ export const StockCard = ({
   const showSellSignal = !!sellSignal?.hasSellSignal;
   const showBbiSection = !!data.bbi && showBBITrendSignal;
   const bbi = data.bbi;
-  const buySignalThreshold = 20; // 暂时使用固定值，因为类型定义中可能没有 jThreshold
+  const buySignalThreshold = buySignal?.jThreshold ?? 20;
 
   const toggleSignal = (type: 'buy' | 'sell', event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -409,8 +409,8 @@ export const StockCard = ({
                 </span>
               </div>
               <p className='mt-1 text-xs text-blue-700 dark:text-blue-200/80'>
-                白线{buySignal.whiteLine.toFixed(2)}高于黄线
-                {buySignal.yellowLine.toFixed(2)}，J值{buySignal.jValue.toFixed(2)} {'<'} 阈值
+                价格{buySignal.price.toFixed(2)}站上黄线{buySignal.yellowLine.toFixed(2)}，
+                白线{buySignal.whiteLine.toFixed(2)}高于黄线，J值{buySignal.jValue.toFixed(2)} {'<'} 阈值
                 {buySignalThreshold.toFixed(2)}
               </p>
             </div>
@@ -424,7 +424,35 @@ export const StockCard = ({
 
           {expandedSignal === 'buy' && (
             <div className='mt-3 space-y-3'>
-              <div className='grid grid-cols-1 gap-2 sm:grid-cols-2'>
+              <div className='grid grid-cols-1 gap-2 sm:grid-cols-3'>
+                <div
+                  className={cn(
+                    'rounded-xl border p-2 text-xs text-center',
+                    buySignal.conditions.priceAboveYellow
+                      ? 'border-blue-200 bg-blue-50 dark:border-blue-900/50 dark:bg-blue-900/30'
+                      : 'border-slate-200 bg-white/80 dark:border-slate-800 dark:bg-slate-900/60',
+                  )}
+                >
+                  <div className='mb-1 flex items-center justify-center gap-1'>
+                    <span className='text-slate-500 dark:text-slate-300'>
+                      价格&gt;黄线
+                    </span>
+                    <span
+                      className={cn(
+                        'rounded-full px-2 py-0.5 text-xs font-medium',
+                        buySignal.conditions.priceAboveYellow
+                          ? 'bg-blue-200 text-blue-700 dark:bg-blue-900/60 dark:text-blue-200'
+                          : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
+                      )}
+                    >
+                      {buySignal.conditions.priceAboveYellow ? '✓' : '✗'}
+                    </span>
+                  </div>
+                  <div className='text-xs text-slate-600 dark:text-slate-300'>
+                    {buySignal.price.toFixed(2)} {'>'}{' '}
+                    {buySignal.yellowLine.toFixed(2)}
+                  </div>
+                </div>
                 <div
                   className={cn(
                     'rounded-xl border p-2 text-xs text-center',
@@ -482,17 +510,6 @@ export const StockCard = ({
                   </div>
                 </div>
               </div>
-              {buySignal.conditions.volumeContraction !== undefined && (
-                <div className='flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:bg-blue-950/30 dark:text-blue-200'>
-                  <span className='h-2 w-2 rounded-full bg-blue-400' />
-                  <span className='font-medium'>
-                    成交量{buySignal.conditions.volumeContraction ? '缩量' : '放量'}
-                  </span>
-                  <span className='text-[11px] text-blue-600/70 dark:text-blue-200/70'>
-                    相对平均成交量
-                  </span>
-                </div>
-              )}
 
               <div className='rounded-xl border border-blue-200 bg-white/70 p-2 dark:border-blue-900/60 dark:bg-blue-950/30'>
                 <p className='mb-1 text-xs font-medium text-blue-700 dark:text-blue-200'>

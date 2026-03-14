@@ -51,24 +51,23 @@ export async function GET() {
         return { hasBuySignal: false as const };
       }
 
+      const priceAboveYellow = quote.price > trend.yellowLine;
       const whiteAboveYellow = trend.whiteLine > trend.yellowLine;
       const jBelowThreshold = user ? kdj.j < user.buySignalJThreshold : false;
-      const volumeContraction = quote.volume < 1_000_000;
       const hasBuySignal =
-        whiteAboveYellow && jBelowThreshold && volumeContraction;
+        priceAboveYellow && whiteAboveYellow && jBelowThreshold;
 
       return {
         hasBuySignal,
         conditions: {
+          priceAboveYellow,
           whiteAboveYellow,
           jBelowThreshold,
-          volumeContraction,
         },
         whiteLine: trend.whiteLine,
         yellowLine: trend.yellowLine,
         jValue: kdj.j,
-        volume: quote.volume,
-        avgVolume: 1_000_000,
+        price: quote.price,
         jThreshold: user?.buySignalJThreshold ?? 0,
       };
     }

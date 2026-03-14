@@ -36,3 +36,33 @@ export async function sendCanBuyMessageByPushDeer(
   ];
   await sendMessageByPushDeer(title, message.join(' \n\n'), EPushDeerType.MARKDOWN, pushDeerKey);
 }
+
+export async function sendB1SignalListByPushDeer(
+  stocks: Array<{
+    symbol: string;
+    name: string;
+    price: number;
+    j: number;
+    whiteLine: number;
+    yellowLine: number;
+  }>,
+  jThreshold: number,
+  pushDeerKey: string,
+) {
+  const title = `✅ B1信号汇总（${stocks.length}）`;
+  const message = [
+    `阈值 J < ${jThreshold.toFixed(2)}`,
+    '',
+    ...stocks.map(
+      (stock, index) =>
+        `${index + 1}. **${stock.symbol} ${stock.name}** 现价 ${stock.price.toFixed(2)} ｜ J ${stock.j.toFixed(2)} ｜ WL ${stock.whiteLine.toFixed(2)} ｜ YL ${stock.yellowLine.toFixed(2)}`,
+    ),
+  ];
+
+  await sendMessageByPushDeer(
+    title,
+    message.join(' \n\n'),
+    EPushDeerType.MARKDOWN,
+    pushDeerKey,
+  );
+}

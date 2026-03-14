@@ -150,6 +150,8 @@ model User {
   pushDeerKey           String?   // PushDeer 推送 key
   showBBITrendSignal    Boolean   @default(true)   // 是否显示BBI趋势信号
   buySignalJThreshold   Float     @default(20.0)   // 买入信号J值阈值
+  b1NotifyEnabled       Boolean   @default(false)  // 是否开启B1全列表通知
+  b1LastNotifiedAt      DateTime?
   stocks                Stock[]
   monitors              Monitor[]
   trades                TradeRecord[]

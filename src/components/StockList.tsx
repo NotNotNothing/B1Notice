@@ -27,15 +27,14 @@ interface StockSignalApiItem {
   buySignal?: {
     hasBuySignal?: boolean;
     conditions?: {
+      priceAboveYellow: boolean;
       whiteAboveYellow: boolean;
       jBelowThreshold: boolean;
-      volumeContraction: boolean;
     };
     whiteLine: number;
     yellowLine: number;
     jValue: number;
-    volume: number;
-    avgVolume: number;
+    price: number;
     jThreshold?: number;
   } | null;
   sellSignal?: StockData['sellSignal'] | null;
@@ -83,15 +82,14 @@ export const StockList = ({
           ? {
               hasBuySignal: true,
               conditions: buySignalData.conditions ?? {
+                priceAboveYellow: false,
                 whiteAboveYellow: false,
                 jBelowThreshold: false,
-                volumeContraction: false,
               },
               whiteLine: buySignalData.whiteLine,
               yellowLine: buySignalData.yellowLine,
               jValue: buySignalData.jValue,
-              volume: buySignalData.volume,
-              avgVolume: buySignalData.avgVolume,
+              price: buySignalData.price,
               jThreshold: buySignalData.jThreshold ?? 20,
             }
           : undefined;

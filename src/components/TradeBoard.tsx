@@ -10,6 +10,7 @@ import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
+import { KLineChart } from './KLineChart';
 import type { ChangeEvent } from 'react';
 
 interface TradeBoardProps {
@@ -122,6 +123,16 @@ export const TradeBoard = ({ stocks, focusSymbol }: TradeBoardProps) => {
     stocks.forEach((stock) => map.set(stock.symbol, stock));
     return map;
   }, [stocks]);
+
+  const chartSymbol = useMemo(() => {
+    const focus = focusSymbol ? normalizeSymbol(focusSymbol) : '';
+    if (focus) return focus;
+    const candidate = normalizeSymbol(filterSymbol.trim());
+    if (!candidate) return '';
+    if (stockMap.has(candidate)) return candidate;
+    if (records.some((record) => record.symbol === candidate)) return candidate;
+    return '';
+  }, [focusSymbol, filterSymbol, stockMap, records]);
 
   useEffect(() => {
     if (focusSymbol) {
@@ -362,6 +373,10 @@ export const TradeBoard = ({ stocks, focusSymbol }: TradeBoardProps) => {
             本地存储，表单导入
           </Badge>
         </div>
+      </div>
+
+      <div className='mt-4'>
+        <KLineChart symbol={chartSymbol} records={records} />
       </div>
 
       <div className='mt-4 grid gap-4 lg:grid-cols-2'>

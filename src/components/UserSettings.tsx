@@ -40,6 +40,8 @@ export function UserSettings({ username }: UserSettingsProps) {
   const [pushDeerKey, setPushDeerKey] = useState('');
   const [showBBITrendSignal, setShowBBITrendSignal] = useState(true);
   const [buySignalJThreshold, setBuySignalJThreshold] = useState(20.0);
+  const [b1NotifyEnabled, setB1NotifyEnabled] = useState(false);
+  
 
   useEffect(() => {
     // 获取当前用户的设置
@@ -58,6 +60,7 @@ export function UserSettings({ username }: UserSettingsProps) {
           const bbiData = await bbiResponse.json();
           setShowBBITrendSignal(bbiData.showBBITrendSignal);
           setBuySignalJThreshold(bbiData.buySignalJThreshold);
+          setB1NotifyEnabled(bbiData.b1NotifyEnabled ?? false);
         }
       } catch (error) {
         console.error('获取用户设置失败:', error);
@@ -183,6 +186,34 @@ export function UserSettings({ username }: UserSettingsProps) {
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : '更新买入信号设置失败',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateB1Notify = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/user/bbi-settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          b1NotifyEnabled,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '更新B1通知设置失败');
+      }
+
+      toast.success('B1通知设置更新成功');
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : '更新B1通知设置失败',
       );
     } finally {
       setIsLoading(false);
@@ -349,6 +380,33 @@ export function UserSettings({ username }: UserSettingsProps) {
                   className='w-full'
                 >
                   保存买入信号设置
+                </Button>
+              </div>
+
+              {/* B1通知设置 */}
+              <div className='space-y-4'>
+                <div className='flex items-center justify-between'>
+                  <div className='space-y-0.5'>
+                    <Label htmlFor='b1-notify' className='text-base'>
+                      B1全列表通知
+                    </Label>
+                    <p className='text-sm text-gray-500'>
+                      开启后自动汇总所有符合B1条件的股票并推送
+                    </p>
+                  </div>
+                  <Switch
+                    id='b1-notify'
+                    checked={b1NotifyEnabled}
+                    onCheckedChange={setB1NotifyEnabled}
+                    disabled={isLoading}
+                  />
+                </div>
+                <Button
+                  onClick={handleUpdateB1Notify}
+                  disabled={isLoading}
+                  className='w-full'
+                >
+                  保存B1通知设置
                 </Button>
               </div>
 

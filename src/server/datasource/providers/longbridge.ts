@@ -1,65 +1,103 @@
-import { Config, QuoteContext, SecurityQuote, Candlestick } from 'longport';
-import { KLine, KDJResult } from './types';
-import { StockData } from '../../types/stock';
+import 'server-only';
 import {
+  IQuoteProvider,
+  DataSourceType,
+  QuoteData,
+  StockInfo,
+  BBIData,
+  StockDataWithIndicators,
+  KLINE_PERIOD,
+  KlinePeriodType,
+} from '../types';
+import { KLine, KDJResult } from '../../longbridge/types';
+import {
+  ZhixingTrendResult,
+  SellSignalResult,
   calculateBBI,
   calculateZhixingTrend,
   checkBBIConsecutiveDays,
   checkSellSignal,
   ZhixingTrendOptions,
-  ZhixingTrendResult,
-  SellSignalResult,
-} from '../../utils/indicators';
+} from '../../../utils/indicators';
+import { Config, QuoteContext, SecurityQuote, Candlestick } from 'longport';
 
 const ADJUST_TYPE_NO_ADJUST = 0;
 
-// K线周期定义
-export const KLINE_PERIOD = {
-  DAY: 14, // Period.Day
-  WEEK: 15, // Period.Week
-} as const;
+export class LongbridgeProvider implements IQuoteProvider {
+  readonly name: DataSourceType = 'longbridge';
+  readonly displayName = 'Longbridge (港股/美股)';
 
-export class LongBridgeClient {
-  private config: Config;
+  private config: Config | null = null;
   private quoteContext: QuoteContext | null = null;
+  private initialized = false;
 
-  constructor() {
-    this.config = Config.fromEnv();
+  async initialize(): Promise<void> {
+    if (this.initialized) return;
+
+    try {
+      this.config = Config.fromEnv();
+      this.initialized = true;
+    } catch (error) {
+      console.error('[Longbridge] 初始化失败:', error);
+      throw error;
+    }
   }
 
-  private async getQuoteContext() {
+  private async getQuoteContext(): Promise<QuoteContext> {
+    if (!this.config) {
+      throw new Error('Longbridge provider not initialized');
+    }
     if (!this.quoteContext) {
       this.quoteContext = await QuoteContext.new(this.config);
     }
     return this.quoteContext;
   }
 
-  private async getStockStaticInfo(symbol: string) {
+  async isAvailable(): Promise<boolean> {
+    try {
+      await this.initialize();
+      const hasCredentials =
+        !!process.env.LONGPORT_APP_KEY &&
+        !!process.env.LONGPORT_APP_SECRET &&
+        !!process.env.LONGPORT_ACCESS_TOKEN;
+      return hasCredentials;
+    } catch {
+      return false;
+    }
+  }
+
+  async getQuote(symbol: string): Promise<QuoteData | null> {
     try {
       const ctx = await this.getQuoteContext();
-      const staticInfo = await ctx.staticInfo([symbol]);
-      if (staticInfo && staticInfo.length > 0) {
-        return staticInfo[0];
-      }
-      return null;
+      const quote = await ctx.quote([symbol]);
+      if (!quote || quote.length === 0) return null;
+
+      const securityQuote = quote[0];
+      const lastDone = Number(securityQuote.lastDone);
+      const prevClose = Number(securityQuote.prevClose);
+      return {
+        price: lastDone,
+        volume: Number(securityQuote.volume),
+        changeRate: ((lastDone - prevClose) / prevClose) * 100,
+      };
     } catch (error) {
-      console.error('Error fetching stock static info:', error);
+      console.error(`[Longbridge] 获取行情失败: ${symbol}`, error);
       return null;
     }
   }
 
-  private async fetchStockQuotes(symbols: string[]): Promise<StockData[]> {
+  async getStockQuotes(symbols: string[]): Promise<StockDataWithIndicators[]> {
     const ctx = await this.getQuoteContext();
     const quotes = await ctx.quote(symbols);
-    // 日线和周线都使用9个周期计算KDJ，只是基础数据不同
+
     const kdjPromises = symbols.map((symbol) =>
       this.calculateKDJ(symbol, KLINE_PERIOD.DAY),
-    ); // 日线KDJ
+    );
     const weeklyKdjPromises = symbols.map((symbol) =>
       this.calculateKDJ(symbol, KLINE_PERIOD.WEEK),
-    ); // 周线KDJ
+    );
     const staticInfoPromises = symbols.map((symbol) =>
-      this.getStockStaticInfo(symbol),
+      this.getStockInfo(symbol),
     );
 
     const [kdjResults, weeklyKdjResults, staticInfoResults] = await Promise.all(
@@ -70,7 +108,7 @@ export class LongBridgeClient {
       ],
     );
 
-    return quotes.map((quote: SecurityQuote, index) => {
+    return quotes.map((quote: SecurityQuote, index: number) => {
       const lastDone = Number(quote.lastDone);
       const prevClose = Number(quote.prevClose);
       const change = lastDone - prevClose;
@@ -106,101 +144,49 @@ export class LongBridgeClient {
     });
   }
 
-  async getStockQuotes(symbols: string[]): Promise<StockData[]> {
-    try {
-      return await this.fetchStockQuotes(symbols);
-    } catch (error) {
-      console.error('Error fetching stock quotes:', error);
-      throw error;
-    }
-  }
-
-  private async fetchKLineData(
+  async getKLineData(
     symbol: string,
     count: number = 100,
-    period: number = KLINE_PERIOD.DAY,
+    period: KlinePeriodType = KLINE_PERIOD.DAY,
   ): Promise<KLine[]> {
     const ctx = await this.getQuoteContext();
     let response: Candlestick[];
+
     try {
-      response = await ctx.candlesticks(
-        symbol,
-        period,
-        count,
-        ADJUST_TYPE_NO_ADJUST,
-      );
+      response = await ctx.candlesticks(symbol, period, count, ADJUST_TYPE_NO_ADJUST);
     } catch (error) {
       const message =
         error instanceof Error ? String(error.message) : String(error);
       if (message.includes('connections limitation is hit')) {
-        console.warn('QuoteContext connection limit reached, recreating context…');
+        console.warn('[Longbridge] 连接数达到上限，重新创建连接...');
         this.quoteContext = null;
         const retryCtx = await this.getQuoteContext();
-        response = await retryCtx.candlesticks(
-          symbol,
-          period,
-          count,
-          ADJUST_TYPE_NO_ADJUST,
-        );
+        response = await retryCtx.candlesticks(symbol, period, count, ADJUST_TYPE_NO_ADJUST);
       } else {
         throw error;
       }
     }
+
     console.log(
-      `[K线数据] 获取到${symbol}的K线数据，周期: ${
-        period === KLINE_PERIOD.WEEK ? '周线' : '日线'
-      }, 数量: ${response.length}`,
+      `[K线数据][Longbridge] ${symbol} 周期: ${period === KLINE_PERIOD.WEEK ? '周线' : '日线'}, 数量: ${response.length}`,
     );
 
-    const kLineData = response.map((candle) => ({
+    return response.map((candle) => ({
       close: candle.close.toNumber(),
       high: candle.high.toNumber(),
       low: candle.low.toNumber(),
-      open: candle.open?.toNumber() || 0, // 处理可能缺失的 open 字段
-      volume: candle.volume || 0, // volume 可能已经是 number 类型
+      open: candle.open?.toNumber() || 0,
+      volume: candle.volume || 0,
       timestamp: candle.timestamp.getTime(),
     }));
-
-    // 对于周线数据，打印一些示例数据用于验证
-    if (period === KLINE_PERIOD.WEEK) {
-      console.log(`[周线数据] ${symbol} 最近5周数据示例:`);
-      kLineData.slice(-5).forEach((data, idx) => {
-        const date = new Date(data.timestamp);
-        console.log(
-          `[周线数据] [${idx}] 时间: ${date.toISOString()}, 收盘: ${
-            data.close
-          }, 最高: ${data.high}, 最低: ${data.low}`,
-        );
-      });
-    }
-
-    return kLineData;
   }
 
-  async getKLineData(
-    symbol: string,
-    count: number = 100,
-    period: number = KLINE_PERIOD.DAY,
-  ): Promise<KLine[]> {
-    try {
-      return await this.fetchKLineData(symbol, count, period);
-    } catch (error) {
-      console.error('Error fetching K-line data:', error);
-      throw error;
-    }
-  }
-
-  private calculateSMA(
-    data: number[],
-    period: number,
-    weight: number,
-  ): number[] {
+  private calculateSMA(data: number[], period: number, weight: number): number[] {
     const result: number[] = [];
-    let sma = data[0]; // 第一个值作为初始值
+    let sma = data[0];
     result.push(sma);
 
     for (let i = 1; i < data.length; i++) {
-      // SMA = (前一日SMA × (N-1) + 今日数值) / N
       sma = (sma * (period - weight) + data[i] * weight) / period;
       result.push(sma);
     }
@@ -217,7 +203,6 @@ export class LongBridgeClient {
       const lowestLow = Math.min(...periodData.map((d) => d.low));
       const currentClose = kLines[index].close;
 
-      // 处理高低点相同的情况
       if (highestHigh === lowestLow) return 50;
       return ((currentClose - lowestLow) / (highestHigh - lowestLow)) * 100;
     });
@@ -225,11 +210,10 @@ export class LongBridgeClient {
 
   async calculateKDJ(
     symbol: string,
-    klinePeriod: number = KLINE_PERIOD.DAY,
+    klinePeriod: KlinePeriodType = KLINE_PERIOD.DAY,
   ): Promise<KDJResult[]> {
     const period = 9;
     try {
-      // 增加获取的K线数量以确保计算准确性（周线需要更长的历史数据）
       const kLineData = await this.getKLineData(symbol, 400, klinePeriod);
       const rsv = this.calculateRSV(kLineData, period);
 
@@ -248,56 +232,43 @@ export class LongBridgeClient {
         };
       });
     } catch (error) {
-      console.error('Error calculating KDJ:', error);
+      console.error('[Longbridge] 计算 KDJ 失败:', error);
       throw error;
     }
   }
 
-  async calculateBBI(symbol: string): Promise<{
-    bbi: number;
-    ma3: number;
-    ma6: number;
-    ma12: number;
-    ma24: number;
-    aboveBBIConsecutiveDays: boolean;
-    belowBBIConsecutiveDays: boolean;
-    aboveBBIConsecutiveDaysCount: number;
-    belowBBIConsecutiveDaysCount: number;
-  } | null> {
+  async calculateBBI(symbol: string): Promise<BBIData | null> {
     try {
-      // 获取足够的K线数据计算BBI（至少需要24天数据）
       const kLineData = await this.getKLineData(symbol, 50, KLINE_PERIOD.DAY);
 
       if (kLineData.length < 24) {
-        console.warn(`K线数据不足，无法计算BBI: ${symbol}`);
+        console.warn(`[Longbridge] K线数据不足，无法计算BBI: ${symbol}`);
         return null;
       }
 
-      // 转换数据格式
-      const formattedData = kLineData.map(k => ({
+      const formattedData = kLineData.map((k) => ({
         timestamp: new Date(k.timestamp).toISOString(),
-        open: k.close, // 简化处理，使用收盘价
+        open: k.close,
         high: k.high,
         low: k.low,
         close: k.close,
-        volume: 0, // BBI计算不需要成交量
+        volume: 0,
       }));
 
-      // 计算BBI指标
       const bbiResult = calculateBBI(formattedData);
 
-      // 准备检查连续天数的数据 - 使用更多历史数据以获得准确的连续天数
-      const historicalData = kLineData.map((k, index) => {
-        const dayData = formattedData.slice(0, index + 1);
-        const dayBBI = calculateBBI(dayData);
-        return {
-          close: k.close,
-          bbi: dayBBI.bbi,
-          date: new Date(k.timestamp).toISOString(),
-        };
-      }).filter(d => d.bbi > 0); // 过滤掉无效的BBI数据
+      const historicalData = kLineData
+        .map((k, index) => {
+          const dayData = formattedData.slice(0, index + 1);
+          const dayBBI = calculateBBI(dayData);
+          return {
+            close: k.close,
+            bbi: dayBBI.bbi,
+            date: new Date(k.timestamp).toISOString(),
+          };
+        })
+        .filter((d) => d.bbi > 0);
 
-      // 检查连续天数状态
       const consecutiveCheck = checkBBIConsecutiveDays(historicalData);
 
       return {
@@ -305,7 +276,7 @@ export class LongBridgeClient {
         ...consecutiveCheck,
       };
     } catch (error) {
-      console.error('Error calculating BBI:', error);
+      console.error('[Longbridge] 计算 BBI 失败:', error);
       return null;
     }
   }
@@ -318,7 +289,7 @@ export class LongBridgeClient {
       const kLineData = await this.getKLineData(symbol, 400, KLINE_PERIOD.DAY);
 
       if (kLineData.length === 0) {
-        console.warn(`K线数据不足，无法计算知行多空趋势线: ${symbol}`);
+        console.warn(`[Longbridge] K线数据不足，无法计算知行多空趋势线: ${symbol}`);
         return null;
       }
 
@@ -333,58 +304,22 @@ export class LongBridgeClient {
 
       return calculateZhixingTrend(formattedData, options);
     } catch (error) {
-      console.error('Error calculating Zhixing trend:', error);
+      console.error('[Longbridge] 计算知行趋势线失败:', error);
       return null;
     }
-  }
-
-  async getQuote(symbol: string): Promise<{
-    price: number;
-    volume: number;
-    changeRate: number;
-  } | null> {
-    try {
-      if (!this.quoteContext) {
-        this.quoteContext = await QuoteContext.new(this.config);
-      }
-
-      if (!this.quoteContext) {
-        throw new Error('Failed to create QuoteContext');
-      }
-
-      const quote = await this.quoteContext.quote([symbol]);
-      if (!quote || quote.length === 0) return null;
-
-      const securityQuote = quote[0];
-      const lastDone = Number(securityQuote.lastDone);
-      const prevClose = Number(securityQuote.prevClose);
-      return {
-        price: lastDone,
-        volume: Number(securityQuote.volume),
-        changeRate: ((lastDone - prevClose) / prevClose) * 100,
-      };
-    } catch (error) {
-      console.error(`获取行情数据失败: ${error}`);
-      return null;
-    }
-  }
-
-  async getStockInfo(symbol: string) {
-    return this.getStockStaticInfo(symbol);
   }
 
   async checkSellSignal(symbol: string): Promise<SellSignalResult | null> {
     try {
-      // 获取足够的日线K线数据，一次性复用以降低行情接口压力
       const kLineData = await this.getKLineData(symbol, 240, KLINE_PERIOD.DAY);
       if (kLineData.length < 2) {
-        console.warn(`K线数据不足，无法检测卖出信号: ${symbol}`);
+        console.warn(`[Longbridge] K线数据不足，无法检测卖出信号: ${symbol}`);
         return null;
       }
 
       const indicatorKLines = kLineData.map((k) => ({
         timestamp: k.timestamp.toString(),
-        open: k.close, // 简化处理，使用收盘价作为开盘价
+        open: k.close,
         high: k.high,
         low: k.low,
         close: k.close,
@@ -393,7 +328,7 @@ export class LongBridgeClient {
 
       const zhixingTrendData = calculateZhixingTrend(indicatorKLines);
       if (!zhixingTrendData) {
-        console.warn(`无法计算知行趋势线数据: ${symbol}`);
+        console.warn(`[Longbridge] 无法计算知行趋势线数据: ${symbol}`);
         return null;
       }
 
@@ -405,18 +340,37 @@ export class LongBridgeClient {
         zhixingTrendData.whiteLine,
       );
     } catch (error) {
-      console.error('检测卖出信号失败:', error);
+      console.error('[Longbridge] 检测卖出信号失败:', error);
       return null;
     }
   }
+
+  async getStockInfo(symbol: string): Promise<StockInfo | null> {
+    try {
+      const ctx = await this.getQuoteContext();
+      const staticInfo = await ctx.staticInfo([symbol]);
+      if (staticInfo && staticInfo.length > 0) {
+        const info = staticInfo[0];
+        return {
+          symbol: symbol,
+          nameCn: info.nameCn || '',
+          nameEn: info.nameEn || '',
+          market: symbol.split('.')[1] || 'UNKNOWN',
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('[Longbridge] 获取股票信息失败:', error);
+      return null;
+    }
+  }
+
+  async destroy(): Promise<void> {
+    this.quoteContext = null;
+    this.initialized = false;
+  }
 }
 
-// 单例模式
-let client: LongBridgeClient | null = null;
-
-export function getLongBridgeClient() {
-  if (!client) {
-    client = new LongBridgeClient();
-  }
-  return client;
+export function createLongbridgeProvider(): IQuoteProvider {
+  return new LongbridgeProvider();
 }

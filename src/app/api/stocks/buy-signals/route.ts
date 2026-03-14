@@ -51,27 +51,24 @@ export async function GET(request: Request) {
       }
 
       // 检测买入信号条件
+      const priceAboveYellow = quote.price > trend.yellowLine;
       const whiteAboveYellow = trend.whiteLine > trend.yellowLine;
       const jBelowThreshold = kdj.j < user.buySignalJThreshold;
 
-      // 简单的成交量缩量检测（这里用固定阈值，实际应用中可能需要更复杂的逻辑）
-      const volumeContraction = quote.volume < 1000000; // 假设100万是缩量
-
-      const hasBuySignal = whiteAboveYellow && jBelowThreshold && volumeContraction;
+      const hasBuySignal = priceAboveYellow && whiteAboveYellow && jBelowThreshold;
 
       return {
         symbol: stock.symbol,
         hasBuySignal,
         conditions: {
+          priceAboveYellow,
           whiteAboveYellow,
           jBelowThreshold,
-          volumeContraction,
         },
         whiteLine: trend.whiteLine,
         yellowLine: trend.yellowLine,
         jValue: kdj.j,
-        volume: quote.volume,
-        avgVolume: 1000000, // 这里应该计算平均成交量
+        price: quote.price,
         jThreshold: user.buySignalJThreshold,
       };
     });
