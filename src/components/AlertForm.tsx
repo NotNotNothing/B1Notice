@@ -154,7 +154,6 @@ export const AlertForm = ({ stock, onClose, onSaved }: AlertFormProps) => {
   const [type, setType] = useState<AlertType>('KDJ_J');
   const [condition, setCondition] = useState<AlertConfig['condition']>('BELOW');
   const [value, setValue] = useState<number>(getDefaultValue(type));
-  const [costLine, setCostLine] = useState<number>(stock.price || 0);
   const [enabled, setEnabled] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -182,7 +181,6 @@ export const AlertForm = ({ stock, onClose, onSaved }: AlertFormProps) => {
         condition,
         threshold: value,
         isActive: enabled,
-        costLine: type === 'PRICE' ? costLine : undefined,
       };
 
       const response = await fetch('/api/monitors', {
@@ -276,32 +274,6 @@ export const AlertForm = ({ stock, onClose, onSaved }: AlertFormProps) => {
         <div className='min-h-[1rem]'>
           {getValueHint(type)}
         </div>
-      </div>
-
-      {type === 'PRICE' && (
-        <div className='space-y-2'>
-          <label className='text-sm font-medium text-gray-700 dark:text-gray-300'>自定义成本线</label>
-          <Input
-            type='number'
-            value={costLine}
-            onChange={(e) => setCostLine(Number(e.target.value))}
-            min={0}
-            step={0.01}
-            placeholder='输入您的成本价格'
-            className='bg-white/10 dark:bg-gray-800/50 border-gray-200/30 dark:border-gray-700/30 h-10 sm:h-11'
-          />
-          <p className='text-xs text-gray-500 dark:text-gray-400 min-h-[1rem]'>
-            可选：设置后将在监控时参考您的成本价格
-          </p>
-        </div>
-      )}
-
-      <div className='flex items-center justify-between p-3 sm:p-4 bg-white/10 dark:bg-gray-800/50 rounded-lg border border-gray-200/30 dark:border-gray-700/30'>
-        <div>
-          <label className='text-sm font-medium text-gray-700 dark:text-gray-300'>启用监控</label>
-          <p className='text-xs text-gray-500 dark:text-gray-400'>开启后将实时监控指标变化</p>
-        </div>
-        <Switch checked={enabled} onCheckedChange={setEnabled} />
       </div>
 
       <div className='flex flex-col sm:flex-row gap-3 pt-2'>

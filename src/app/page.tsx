@@ -6,13 +6,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StockList } from '../components/StockList';
 import { AlertPanel } from '../components/AlertPanel';
 import { Button } from '@/components/ui/button';
-import { ArrowUpDown } from 'lucide-react';
+import { ArrowUpDown, RefreshCw } from 'lucide-react';
 import { UserSettings } from '@/components/UserSettings';
 import { Badge } from '@/components/ui/badge';
 import { TradeBoard } from '@/components/TradeBoard';
 
 export default function Home() {
-  const { stocks, fetchStocks, isKDJDescending, toggleSortByKDJ } =
+  const { stocks, loading, fetchStocks, isKDJDescending, toggleSortByKDJ } =
     useStockStore();
   const { data: session } = useSession();
   const [showBBITrendSignal, setShowBBITrendSignal] = useState(true);
@@ -116,6 +116,16 @@ export default function Home() {
             </div>
           </div>
           <div className='flex w-full flex-wrap justify-start gap-2 sm:w-auto sm:justify-end'>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={fetchStocks}
+              disabled={loading}
+              className='flex h-10 flex-1 items-center gap-1 rounded-xl border-slate-200 bg-white/70 text-slate-700 shadow-sm sm:flex-none sm:px-4 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-200'
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? '刷新中...' : '全局刷新'}
+            </Button>
             <Button
               variant='outline'
               size='sm'

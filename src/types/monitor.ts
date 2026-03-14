@@ -7,7 +7,6 @@ export interface CreateMonitorRequest {
   condition: AlertCondition;
   threshold: number;
   isActive: boolean;
-  costLine?: number;
 }
 
 export interface MonitorResponse {
@@ -17,7 +16,6 @@ export interface MonitorResponse {
   condition: AlertCondition;
   threshold: number;
   isActive: boolean;
-  costLine?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -30,7 +28,6 @@ export interface AlertConfig {
   condition: AlertCondition;
   value: number;
   enabled: boolean;
-  costLine?: number;
 }
 
 // 转换函数
@@ -41,5 +38,4 @@ export const monitorToAlert = (monitor: MonitorResponse): AlertConfig => ({
   condition: monitor.condition,
   value: monitor.threshold,
   enabled: monitor.isActive,
-  costLine: monitor.costLine,
 });

@@ -24,7 +24,6 @@ export async function GET() {
     let availableSources;
     try {
       availableSources = await getAvailableDataSources();
-      console.log('[DataSource API] 获取到的数据源:', JSON.stringify(availableSources));
     } catch (error) {
       console.error('[DataSource API] 获取可用数据源失败，使用默认列表:', error);
       availableSources = DEFAULT_SOURCES;
@@ -35,7 +34,6 @@ export async function GET() {
       availableSources,
     };
     
-    console.log('[DataSource API] 返回响应:', JSON.stringify(response));
     return NextResponse.json(response);
   } catch (error) {
     console.error('[DataSource API] 获取数据源配置失败:', error);

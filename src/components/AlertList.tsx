@@ -158,18 +158,13 @@ export const AlertList = forwardRef<AlertListRef, AlertListProps>(({ symbol }, r
                     连续 {monitor.threshold} 天
                   </span>
                 ) : (
-                  <span>
+                <span>
                     {monitor.condition === 'ABOVE' ? '高于' : '低于'}{' '}
                     {monitor.threshold}
                     {getValueSuffix(monitor.type)}
                   </span>
                 )}
-                {monitor.costLine && (
-                  <span className='ml-2 text-xs text-blue-600 dark:text-blue-400 font-medium'>
-                    (成本线: {monitor.costLine})
-                  </span>
-                )}
-              </div>
+               </div>
             </div>
             <div className='flex items-center gap-2 sm:gap-4 flex-shrink-0'>
               <Switch

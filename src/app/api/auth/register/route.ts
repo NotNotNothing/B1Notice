@@ -13,8 +13,6 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { username, password } = registerSchema.parse(body);
 
-    console.warn(`\n GODD_LOG -> POST -> password:`, password);
-    console.warn(`\n GODD_LOG -> POST -> username:`, username);
     // 检查用户名是否已存在
     const existingUser = await prisma.user.findUnique({
       where: { username },

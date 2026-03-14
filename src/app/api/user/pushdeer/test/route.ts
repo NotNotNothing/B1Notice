@@ -6,15 +6,12 @@ import { sendMessageByPushDeer } from '@/server/pushdeer';
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
-    console.log('POST Session:', session);
 
     if (!session?.user?.id) {
-      console.log('未登录或用户ID不存在');
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
     const body = await request.json();
-    console.log('Request body:', body);
 
     const { pushDeerKey } = body;
 
@@ -25,7 +22,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // 发送测试消息
     await sendMessageByPushDeer(
       '🎉 测试推送成功',
       '恭喜您！如果您收到这条消息，说明 PushDeer 推送功能配置成功。\n\n当股票满足您设置的条件时，您将收到类似的通知。',
@@ -33,7 +29,6 @@ export async function POST(request: Request) {
       pushDeerKey
     );
 
-    console.log('测试推送发送成功');
     return NextResponse.json({ message: '测试推送发送成功' });
   } catch (error) {
     console.error('测试推送失败:', error);

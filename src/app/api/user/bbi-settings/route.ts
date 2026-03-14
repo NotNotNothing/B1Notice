@@ -6,10 +6,8 @@ import { prisma } from '@/lib/prisma';
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
-    console.log('GET Session:', session);
 
     if (!session?.user?.id) {
-      console.log('未登录或用户ID不存在');
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
@@ -25,7 +23,6 @@ export async function GET(request: Request) {
     });
 
     if (!user) {
-      console.log('未找到用户:', session.user.id);
       return NextResponse.json({ error: '用户不存在' }, { status: 404 });
     }
 
@@ -46,15 +43,12 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
-    console.log('POST Session:', session);
 
     if (!session?.user?.id) {
-      console.log('未登录或用户ID不存在');
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
     const body = await request.json();
-    console.log('Request body:', body);
 
     const { showBBITrendSignal, buySignalJThreshold, b1NotifyEnabled } = body;
 
@@ -98,7 +92,6 @@ export async function POST(request: Request) {
     });
 
     if (!existingUser) {
-      console.log('未找到用户:', session.user.id);
       return NextResponse.json({ error: '用户不存在' }, { status: 404 });
     }
 
@@ -124,7 +117,6 @@ export async function POST(request: Request) {
       data: updateData,
     });
 
-    console.log('更新成功:', updatedUser.id);
     return NextResponse.json({
       message: '设置更新成功',
       showBBITrendSignal: updatedUser.showBBITrendSignal,
