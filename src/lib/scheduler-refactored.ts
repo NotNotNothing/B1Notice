@@ -5,6 +5,7 @@ import { MarketDataService } from '@/server/market-data/service';
 import { MonitorEvaluator } from '@/server/monitor/service';
 import { NotificationService } from '@/server/notification/service';
 import { isProd } from './utils';
+import { getBeijingTimeValue } from './time';
 
 const logger = {
   info: (message: string, meta?: unknown) => {
@@ -56,10 +57,7 @@ export class MonitorScheduler {
 
   async startMonitoring(): Promise<void> {
     schedule.scheduleJob('*/5 * * * 1-5', async () => {
-      const now = new Date();
-      const hour = now.getHours();
-      const minute = now.getMinutes();
-      const timeValue = hour * 100 + minute;
+      const timeValue = getBeijingTimeValue();
 
       logger.info(`当前时间：${timeValue}`);
 

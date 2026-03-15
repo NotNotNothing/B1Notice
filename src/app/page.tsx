@@ -10,6 +10,7 @@ import { ArrowUpDown, RefreshCw } from 'lucide-react';
 import { UserSettings } from '@/components/UserSettings';
 import { Badge } from '@/components/ui/badge';
 import { TradeBoard } from '@/components/TradeBoard';
+import { ClosingScreenerPanel } from '@/components/ClosingScreenerPanel';
 
 export default function Home() {
   const { stocks, loading, fetchStocks, isKDJDescending, toggleSortByKDJ } =
@@ -161,6 +162,12 @@ export default function Home() {
                 指标监控
               </TabsTrigger>
               <TabsTrigger
+                value='closing-screener'
+                className='flex-1 rounded-xl data-[state=active]:bg-slate-900 data-[state=active]:text-white dark:data-[state=active]:bg-white dark:data-[state=active]:text-slate-900'
+              >
+                收盘选股
+              </TabsTrigger>
+              <TabsTrigger
                 value='trades'
                 className='flex-1 rounded-xl data-[state=active]:bg-slate-900 data-[state=active]:text-white dark:data-[state=active]:bg-white dark:data-[state=active]:text-slate-900'
               >
@@ -179,6 +186,10 @@ export default function Home() {
 
           <TabsContent value='alerts' className='mt-0'>
             <AlertPanel stocks={stocks} />
+          </TabsContent>
+
+          <TabsContent value='closing-screener' className='mt-0'>
+            <ClosingScreenerPanel />
           </TabsContent>
 
           <TabsContent value='trades' className='mt-0'>

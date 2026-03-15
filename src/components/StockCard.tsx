@@ -5,6 +5,7 @@ import { cn } from '../lib/utils';
 import { Card } from '@/components/ui/card';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import { formatBeijingDateTime } from '@/lib/time';
 
 interface StockCardProps {
   data: StockData;
@@ -90,8 +91,13 @@ export const StockCard = ({
           {data.updatedAt && (
             <p className='text-xs text-slate-400 dark:text-slate-300/80'>
               更新于{' '}
-              {format(new Date(data.updatedAt), 'MM-dd HH:mm:ss', {
-                locale: zhCN,
+              {formatBeijingDateTime(data.updatedAt, {
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false,
               })}
             </p>
           )}

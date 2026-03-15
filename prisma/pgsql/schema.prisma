@@ -152,13 +152,85 @@ model User {
   buySignalJThreshold   Float     @default(20.0)   // 买入信号J值阈值
   b1NotifyEnabled       Boolean   @default(false)  // 是否开启B1全列表通知
   b1LastNotifiedAt      DateTime?
+  closingScreenerEnabled         Boolean   @default(false) // 是否开启收盘选股
+  closingScreenerNotifyEnabled   Boolean   @default(false) // 是否开启收盘选股通知
+  closingScreenerMaxDailyJ       Float?    @default(20.0) // 日线J值上限
+  closingScreenerMaxWeeklyJ      Float?    @default(35.0) // 周线J值上限
+  closingScreenerRequirePriceAboveBBI Boolean @default(true) // 是否要求收盘价站上BBI
+  closingScreenerMinAboveBBIDays Int?      @default(1) // 连续站上BBI天数下限
+  closingScreenerMinVolumeRatio  Float?    @default(1.2) // 量比阈值
+  closingScreenerLastNotifiedAt  DateTime?
+  dataSource            String    @default("longbridge")  // longbridge, akshare
   stocks                Stock[]
   monitors              Monitor[]
   trades                TradeRecord[]
+  marketScreeningResults MarketScreeningResult[]
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
   sessions              Session[]
   accounts              Account[]
+}
+
+model MarketScreeningRun {
+  id            String   @id @default(cuid())
+  market        String
+  tradeDate     DateTime
+  status        String   @default("PENDING") // PENDING, RUNNING, COMPLETED, FAILED
+  totalSymbols  Int      @default(0)
+  snapshotCount Int      @default(0)
+  errorMessage  String?
+  startedAt     DateTime @default(now())
+  finishedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  snapshots     MarketScreeningSnapshot[]
+  results       MarketScreeningResult[]
+
+  @@unique([market, tradeDate])
+  @@index([tradeDate])
+}
+
+model MarketScreeningSnapshot {
+  id                           String   @id @default(cuid())
+  runId                        String
+  run                          MarketScreeningRun @relation(fields: [runId], references: [id])
+  symbol                       String
+  name                         String
+  market                       String
+  price                        Float
+  changePercent                Float
+  volume                       Float
+  dailyK                       Float
+  dailyD                       Float
+  dailyJ                       Float
+  weeklyJ                      Float
+  bbi                          Float
+  aboveBBIConsecutiveDaysCount Int
+  belowBBIConsecutiveDaysCount Int
+  volumeRatio                  Float
+  createdAt                    DateTime @default(now())
+  results                      MarketScreeningResult[]
+
+  @@unique([runId, symbol])
+  @@index([symbol])
+  @@index([runId])
+}
+
+model MarketScreeningResult {
+  id         String   @id @default(cuid())
+  runId      String
+  run        MarketScreeningRun @relation(fields: [runId], references: [id])
+  snapshotId String
+  snapshot   MarketScreeningSnapshot @relation(fields: [snapshotId], references: [id])
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  symbol     String
+  name       String
+  reasons    String
+  createdAt  DateTime @default(now())
+
+  @@unique([runId, userId, symbol])
+  @@index([userId, createdAt])
 }
 
 model Account {

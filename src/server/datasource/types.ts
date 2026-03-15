@@ -19,6 +19,12 @@ export interface StockInfo {
   market: string;
 }
 
+export interface MarketStockInfo {
+  symbol: string;
+  name: string;
+  market: string;
+}
+
 export interface BBIData {
   bbi: number;
   ma3: number;
@@ -92,6 +98,8 @@ export interface IQuoteProvider {
   checkSellSignal(symbol: string): Promise<SellSignalResult | null>;
 
   getStockInfo(symbol: string): Promise<StockInfo | null>;
+
+  getMarketStocks?(market: string): Promise<MarketStockInfo[]>;
 
   isAvailable(): Promise<boolean>;
 

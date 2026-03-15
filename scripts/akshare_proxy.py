@@ -164,6 +164,32 @@ def get_stock_info(symbol: str) -> dict:
         return {"error": str(e)}
 
 
+def get_universe(market: str = 'A') -> list:
+    """获取 A 股股票池"""
+    try:
+        df = ak.stock_zh_a_spot_em()
+        if df.empty:
+            return []
+
+        results = []
+        normalized_market = market.upper()
+        for _, row in df.iterrows():
+            code = str(row['代码']).zfill(6)
+            detected_market = get_market_from_code(code).upper()
+            if normalized_market in ('SH', 'SZ') and detected_market != normalized_market:
+                continue
+
+            results.append({
+                "symbol": f"{code}.{detected_market}",
+                "name": row['名称'],
+                "market": detected_market,
+            })
+
+        return results
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def check_available() -> dict:
     """检查 AKShare 是否可用"""
     try:
@@ -207,6 +233,9 @@ def main():
             result = {"error": "Symbol required"}
         else:
             result = get_stock_info(sys.argv[2])
+    elif command == 'universe':
+        market = sys.argv[2] if len(sys.argv) > 2 else 'A'
+        result = get_universe(market)
     else:
         result = {"error": f"Unknown command: {command}"}
     

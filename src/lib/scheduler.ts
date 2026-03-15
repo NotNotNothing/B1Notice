@@ -11,8 +11,10 @@ import schedule from 'node-schedule';
 import { sendB1SignalListByPushDeer, sendCanBuyMessageByPushDeer } from '@/server/pushdeer';
 import { KDJ_TYPE } from '@/utils';
 import { isProd } from './utils';
+import { getBeijingTimeValue, getBeijingWeekday } from './time';
 import { detectSellSignal } from '../utils/sellSignals';
 import { KLineData } from '../types/stock';
+import { closingScreenerService } from '@/server/screener/service';
 import { 
   getQuoteProvider,
   IQuoteProvider,
@@ -432,8 +434,7 @@ export class MonitorScheduler {
 
       // 如果是周线KDJ，只在周五计算
       if (isWeekly) {
-        const today = new Date();
-        const dayOfWeek = today.getDay(); // 0 是周日，5 是周五
+        const dayOfWeek = getBeijingWeekday(); // 0 是周日，5 是周五
         if (dayOfWeek !== 5) {
           logger.info('非周五，跳过周线KDJ计算', {
             symbol: monitor.stock.symbol,
@@ -796,10 +797,7 @@ export class MonitorScheduler {
     // 每5分钟执行一次监控任务
     schedule.scheduleJob('*/5 * * * 1-5', async () => {
       // schedule.scheduleJob('*/2 * * * 1-5', async () => {
-      const now = new Date();
-      const hour = now.getHours();
-      const minute = now.getMinutes();
-      const timeValue = hour * 100 + minute; // 例如 9:30 => 930
+      const timeValue = getBeijingTimeValue(); // 例如 9:30 => 930
       console.log('当前时间：', timeValue);
       // A股市场监控 (9:30-11:30, 13:00-15:00)
       if (
@@ -818,6 +816,15 @@ export class MonitorScheduler {
           await this.calculateDailyKDJ(['SH', 'SZ']);
         } catch (error) {
           console.error('A股 KDJ 计算任务执行失败:', error);
+        }
+      }
+
+      if (timeValue >= 1510 && timeValue <= 1600) {
+        console.log('开始执行 A 股收盘选股任务');
+        try {
+          await closingScreenerService.runDailyAShareScreening();
+        } catch (error) {
+          console.error('A股收盘选股任务执行失败:', error);
         }
       }
 
@@ -1011,18 +1018,14 @@ export class MonitorScheduler {
   }
 
   private shouldCheckKDJ(markets: string[]): boolean {
-    const now = new Date();
-    const hour = now.getHours();
-    const minute = now.getMinutes();
-
     // A股市场检查时间（14:50, 14:55）
     if (markets.some((m) => ['SH', 'SZ'].includes(m))) {
-      return hour === 14 && (minute === 50 || minute === 55);
+      return [1450, 1455].includes(getBeijingTimeValue());
     }
 
     // 港股市场检查时间（15:50, 15:55）
     if (markets.includes('HK')) {
-      return hour === 15 && (minute === 50 || minute === 55);
+      return [1550, 1555].includes(getBeijingTimeValue());
     }
 
     return false;

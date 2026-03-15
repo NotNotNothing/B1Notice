@@ -5,6 +5,7 @@ import { TradeRecord, StopRule } from '@/types/trade';
 import { StockData } from '@/types/stock';
 import { useTradeRecords } from '@/hooks/useTradeRecords';
 import { toast } from 'sonner';
+import { getBeijingDateAtTime, getBeijingNow } from '@/lib/time';
 import { cn } from '@/lib/utils';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -282,9 +283,8 @@ export const TradeBoard = ({ stocks, focusSymbol }: TradeBoardProps) => {
 
   useEffect(() => {
     const checkCloseAlert = () => {
-      const now = new Date();
-      const close = new Date();
-      close.setHours(15, 0, 0, 0); // 统一默认收盘 15:00，本地时间
+      const now = getBeijingNow();
+      const close = getBeijingDateAtTime(now, 15, 0, 0); // 统一使用北京时间收盘 15:00
       if (now > close) return;
       const minutesToClose = (close.getTime() - now.getTime()) / 60000;
       if (minutesToClose > 10 || minutesToClose < 0) return;

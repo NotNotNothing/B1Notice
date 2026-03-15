@@ -6,6 +6,7 @@ import {
   DataSourceType,
   QuoteData,
   StockInfo,
+  MarketStockInfo,
   BBIData,
   StockDataWithIndicators,
   KLINE_PERIOD,
@@ -388,6 +389,20 @@ export class AKShareProvider implements IQuoteProvider {
     } catch (error) {
       console.error(`[AKShare] 获取股票信息失败: ${symbol}`, error);
       return null;
+    }
+  }
+
+  async getMarketStocks(market: string): Promise<MarketStockInfo[]> {
+    if (!['SH', 'SZ', 'A'].includes(market.toUpperCase())) {
+      return [];
+    }
+
+    try {
+      const result = await runPython<MarketStockInfo[]>(['universe', market.toUpperCase()]);
+      return result;
+    } catch (error) {
+      console.error('[AKShare] 获取 A 股股票池失败:', error);
+      return [];
     }
   }
 }

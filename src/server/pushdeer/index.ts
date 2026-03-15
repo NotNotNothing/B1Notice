@@ -66,3 +66,33 @@ export async function sendB1SignalListByPushDeer(
     pushDeerKey,
   );
 }
+
+export async function sendClosingScreenerListByPushDeer(
+  stocks: Array<{
+    symbol: string;
+    name: string;
+    price: number;
+    dailyJ: number;
+    weeklyJ: number;
+    bbi: number;
+    volumeRatio: number;
+  }>,
+  pushDeerKey: string,
+) {
+  const title = `收盘选股结果（${stocks.length}）`;
+  const message = [
+    '以下为最新一轮 A 股收盘选股命中结果：',
+    '',
+    ...stocks.map(
+      (stock, index) =>
+        `${index + 1}. **${stock.symbol} ${stock.name}** 现价 ${stock.price.toFixed(2)} ｜ 日J ${stock.dailyJ.toFixed(2)} ｜ 周J ${stock.weeklyJ.toFixed(2)} ｜ BBI ${stock.bbi.toFixed(2)} ｜ 量比 ${stock.volumeRatio.toFixed(2)}`,
+    ),
+  ];
+
+  await sendMessageByPushDeer(
+    title,
+    message.join(' \n\n'),
+    EPushDeerType.MARKDOWN,
+    pushDeerKey,
+  );
+}
