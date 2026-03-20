@@ -9,7 +9,7 @@ interface StockStore {
   loading: boolean;
   error: string | null;
   isKDJDescending: boolean;
-  fetchStocks: () => Promise<void>;
+  fetchStocks: (options?: { refresh?: boolean }) => Promise<void>;
   addAlert: (alert: AlertConfig) => void;
   removeAlert: (id: string) => void;
   toggleAlert: (id: string) => void;
@@ -41,15 +41,19 @@ export const useStockStore = create<StockStore>((set) => ({
   loading: false,
   error: null,
   isKDJDescending: false,
-  fetchStocks: async () => {
+  fetchStocks: async (options) => {
     set({ loading: true, error: null });
     try {
-      const response = await fetch('/api/stocks');
+      const response = await fetch('/api/stocks', {
+        method: options?.refresh ? 'PUT' : 'GET',
+        cache: 'no-store',
+      });
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || '获取股票数据失败');
       }
-      const stocksData = await response.json();
+      const payload = await response.json();
+      const stocksData = Array.isArray(payload) ? payload : payload.data;
       set((state) => {
         const sortedStocks = [...stocksData].sort((a, b) => {
           if (state.isKDJDescending) {
@@ -60,6 +64,19 @@ export const useStockStore = create<StockStore>((set) => ({
         });
         return { stocks: sortedStocks, loading: false, error: null };
       });
+
+      if (options?.refresh) {
+        const refreshedCount = payload?.refreshedCount ?? stocksData.length;
+        const failedCount = payload?.failedCount ?? 0;
+
+        if (failedCount > 0) {
+          toast.warning(`已刷新 ${refreshedCount} 只股票，${failedCount} 只失败`);
+        } else if (refreshedCount > 0) {
+          toast.success(`已刷新 ${refreshedCount} 只股票`);
+        } else {
+          toast.info('当前没有可刷新的股票');
+        }
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '获取股票数据失败';
       set({ error: errorMessage, loading: false });

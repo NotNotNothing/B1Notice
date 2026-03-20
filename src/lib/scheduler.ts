@@ -10,15 +10,14 @@ import { prisma } from './prisma';
 import schedule from 'node-schedule';
 import { sendB1SignalListByPushDeer, sendCanBuyMessageByPushDeer } from '@/server/pushdeer';
 import { KDJ_TYPE } from '@/utils';
-import { isProd } from './utils';
 import { getBeijingTimeValue, getBeijingWeekday } from './time';
 import { detectSellSignal } from '../utils/sellSignals';
 import { KLineData } from '../types/stock';
 import { closingScreenerService } from '@/server/screener/service';
+import type { TaskExecutionContext } from '@/server/tasks/types';
 import { 
   getQuoteProvider,
   IQuoteProvider,
-  DataSourceType,
   KLINE_PERIOD 
 } from '@/server/datasource';
 
@@ -35,17 +34,28 @@ interface Monitor {
   };
 }
 
-interface IndicatorData {
-  j?: number; // for KDJ_J
-  close?: number; // for PRICE
-  volume?: number; // for VOLUME
-  changePercent?: number; // for CHANGE_PERCENT
-  bbiConsecutiveDays?: number; // for BBI consecutive
+interface MonitorRecord {
+  id: string;
+  stockId: string;
+  isActive: boolean;
+  condition: string;
+  type: string;
+  threshold: number;
+  stock: {
+    symbol: string;
+    name: string;
+  };
+}
+
+interface KDJRecord {
+  k: number;
+  d: number;
+  j: number;
 }
 
 // 添加日志工具
 const logger = {
-  info: (message: string, meta?: any) => {
+  info: (message: string, meta?: unknown) => {
     console.info(`[Monitor] ${message}`, meta ? JSON.stringify(meta) : '');
   },
   error: (message: string, error?: unknown) => {
@@ -61,8 +71,7 @@ export class MonitorScheduler {
   private akshareProvider: IQuoteProvider | null = null;
 
   constructor() {
-    this.initializeProviders();
-    this.fetchAndStoreStockData(['SH', 'SZ', 'HK', 'US']);
+    void this.initializeProviders();
   }
 
   private async initializeProviders(): Promise<void> {
@@ -398,7 +407,32 @@ export class MonitorScheduler {
     }
   }
 
-  private async calculateDailyKDJ(scope: string[] = []) {
+  async bootstrapInitialData(context?: TaskExecutionContext) {
+    await this.fetchAndStoreStockData(['SH', 'SZ', 'HK', 'US'], context);
+  }
+
+  async runStockRefreshTask(
+    markets: string[],
+    context?: TaskExecutionContext,
+  ) {
+    await this.fetchAndStoreStockData(markets, context);
+  }
+
+  async runKdjCalculationTask(
+    scope: string[] = [],
+    context?: TaskExecutionContext,
+  ) {
+    await this.calculateDailyKDJ(scope, context);
+  }
+
+  async runMonitorTask(markets: string[], context?: TaskExecutionContext) {
+    await this.monitorMarket(markets, context);
+  }
+
+  private async calculateDailyKDJ(
+    scope: string[] = [],
+    context?: TaskExecutionContext,
+  ) {
     try {
       const activeMonitors = await prisma.monitor.findMany({
         where: {
@@ -411,24 +445,49 @@ export class MonitorScheduler {
 
       if (!activeMonitors?.length) {
         logger.info('没有找到激活的 KDJ 监控配置', { scope });
+        await context?.updateProgress({
+          current: 0,
+          total: 0,
+          label: `${scope.join(',')} KDJ 计算`,
+          summary: '没有需要处理的 KDJ 监控',
+        });
         return;
       }
+
+      await context?.setMetadata({
+        scope,
+        monitorCount: activeMonitors.length,
+      });
+      await context?.updateProgress({
+        current: 0,
+        total: activeMonitors.length,
+        label: `${scope.join(',')} KDJ 计算`,
+        summary: `准备处理 ${activeMonitors.length} 个 KDJ 监控`,
+      });
 
       logger.info(`开始处理 KDJ 监控配置`, {
         count: activeMonitors.length,
         scope,
       });
 
-      for (const monitor of activeMonitors) {
+      for (const [index, monitor] of activeMonitors.entries()) {
+        await context?.throwIfStopRequested();
         await this.processKDJMonitor(monitor);
+        await context?.updateProgress({
+          current: index + 1,
+          total: activeMonitors.length,
+          label: `${scope.join(',')} KDJ 计算`,
+        });
       }
+
+      await context?.setSummary(`已完成 ${activeMonitors.length} 个 KDJ 监控计算`);
     } catch (error) {
       logger.error('执行每日KDJ计算任务失败', error);
       throw error;
     }
   }
 
-  private async processKDJMonitor(monitor: any) {
+  private async processKDJMonitor(monitor: MonitorRecord) {
     try {
       const isWeekly = monitor.type === 'WEEKLY_KDJ_J';
 
@@ -467,13 +526,15 @@ export class MonitorScheduler {
         return;
       }
 
-      await this.processKDJResult(monitor, latestKDJ, isWeekly);
+      await this.processKDJResult(monitor, latestKDJ);
     } catch (error) {
       logger.error(`处理 KDJ 监控失败: ${monitor.stock.symbol}`, error);
     }
   }
 
-  private validateKDJData(kdjData: any): boolean {
+  private validateKDJData(
+    kdjData: Partial<KDJRecord> | null | undefined,
+  ): kdjData is KDJRecord {
     return (
       typeof kdjData?.k === 'number' &&
       typeof kdjData?.d === 'number' &&
@@ -482,9 +543,8 @@ export class MonitorScheduler {
   }
 
   private async processKDJResult(
-    monitor: any,
-    latestKDJ: any,
-    isWeekly: boolean,
+    monitor: MonitorRecord,
+    latestKDJ: KDJRecord,
   ) {
     try {
       if (!this.validateKDJData(latestKDJ)) {
@@ -530,7 +590,10 @@ export class MonitorScheduler {
     }
   }
 
-  private async fetchAndStoreStockData(markets: string[]) {
+  private async fetchAndStoreStockData(
+    markets: string[],
+    context?: TaskExecutionContext,
+  ) {
     try {
       await this.initializeProviders();
       
@@ -540,11 +603,25 @@ export class MonitorScheduler {
         },
       });
 
+      await context?.setMetadata({
+        markets,
+        stockCount: stocks.length,
+      });
+      await context?.updateProgress({
+        current: 0,
+        total: stocks.length,
+        label: `${markets.join(',')} 行情刷新`,
+        summary: `准备刷新 ${stocks.length} 只股票`,
+      });
+
       logger.info(`开始获取${markets.join(',')}市场的股票数据`, {
         stockCount: stocks.length,
       });
 
-      for (const stock of stocks) {
+      let successCount = 0;
+
+      for (const [index, stock] of stocks.entries()) {
+        await context?.throwIfStopRequested();
         try {
           logger.info(`开始处理股票: ${stock.symbol}`, { stockId: stock.id, market: stock.market });
 
@@ -770,6 +847,7 @@ export class MonitorScheduler {
             });
 
             logger.info(`成功更新股票${stock.symbol}数据`);
+            successCount += 1;
           } catch (dbError) {
             logger.error(`数据库操作失败: ${stock.symbol}`, {
               error: dbError,
@@ -785,11 +863,23 @@ export class MonitorScheduler {
           });
         }
 
+        await context?.updateProgress({
+          current: index + 1,
+          total: stocks.length,
+          label: `${markets.join(',')} 行情刷新`,
+          summary: `已完成 ${index + 1}/${stocks.length}，成功 ${successCount}`,
+        });
+
         // 添加延迟以避免请求过快
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
+
+      await context?.setSummary(
+        `行情刷新结束，共 ${stocks.length} 只，成功 ${successCount} 只`,
+      );
     } catch (error) {
       logger.error(`获取股票数据失败`, error);
+      throw error;
     }
   }
 
@@ -856,7 +946,10 @@ export class MonitorScheduler {
     });
   }
 
-  private async monitorMarket(markets: string[]) {
+  private async monitorMarket(
+    markets: string[],
+    context?: TaskExecutionContext,
+  ) {
     try {
       logger.info(`开始执行市场监控`, { markets });
 
@@ -890,9 +983,26 @@ export class MonitorScheduler {
 
       if (monitorsToCheck.length === 0) {
         logger.info('没有需要执行的监控任务', { markets });
-        await this.notifyB1Signals(markets);
+        await context?.updateProgress({
+          current: 0,
+          total: 0,
+          label: `${markets.join(',')} 指标监控`,
+          summary: '没有需要执行的监控规则',
+        });
+        await this.notifyB1Signals(markets, context);
         return;
       }
+
+      await context?.setMetadata({
+        markets,
+        monitorCount: monitorsToCheck.length,
+      });
+      await context?.updateProgress({
+        current: 0,
+        total: monitorsToCheck.length,
+        label: `${markets.join(',')} 指标监控`,
+        summary: `准备执行 ${monitorsToCheck.length} 个监控规则`,
+      });
 
       logger.info(`找到${monitorsToCheck.length}个监控任务`, {
         markets,
@@ -900,22 +1010,35 @@ export class MonitorScheduler {
         kdj: kdjMonitors.length,
       });
 
-      // 并行执行监控检查
-      await Promise.all(
-        monitorsToCheck.map((monitor) =>
-          this.checkIndicator(monitor).catch((error) =>
-            logger.error(`监控任务执行异常: ${monitor.stock.symbol}`, error),
-          ),
-        ),
-      );
+      let processedCount = 0;
 
-      await this.notifyB1Signals(markets);
+      for (const monitor of monitorsToCheck) {
+        await context?.throwIfStopRequested();
+        await this.checkIndicator(monitor).catch((error) =>
+          logger.error(`监控任务执行异常: ${monitor.stock.symbol}`, error),
+        );
+        processedCount += 1;
+        await context?.updateProgress({
+          current: processedCount,
+          total: monitorsToCheck.length,
+          label: `${markets.join(',')} 指标监控`,
+        });
+      }
+
+      await this.notifyB1Signals(markets, context);
+      await context?.setSummary(
+        `监控检查完成，共执行 ${processedCount} 条规则`,
+      );
     } catch (error) {
       logger.error(`市场监控任务执行失败`, error);
+      throw error;
     }
   }
 
-  private async notifyB1Signals(markets: string[]) {
+  private async notifyB1Signals(
+    markets: string[],
+    context?: TaskExecutionContext,
+  ) {
     try {
       const users = await prisma.user.findMany({
         where: {
@@ -950,6 +1073,7 @@ export class MonitorScheduler {
       const now = new Date();
 
       for (const user of users) {
+        await context?.throwIfStopRequested();
         if (!user.pushDeerKey) {
           logger.info('用户未配置 PushDeer Key，跳过B1通知', { userId: user.id });
           continue;
@@ -1031,7 +1155,7 @@ export class MonitorScheduler {
     return false;
   }
 
-  private mapToMonitor(dbMonitor: any): Monitor {
+  private mapToMonitor(dbMonitor: MonitorRecord): Monitor {
     return {
       id: dbMonitor.id,
       stockId: dbMonitor.stockId,

@@ -37,46 +37,99 @@ class AKShareError extends Error {
   }
 }
 
-async function runPython<T>(args: string[]): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const python = spawn('python3', [SCRIPT_PATH, ...args], {
-      cwd: process.cwd(),
-      env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
-    });
+/**
+ * 延迟函数
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
-    let stdout = '';
-    let stderr = '';
+/**
+ * 带重试机制的 Python 执行函数
+ */
+async function runPython<T>(args: string[], maxRetries: number = 3): Promise<T> {
+  let lastError: Error | null = null;
 
-    python.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await new Promise<T>((resolve, reject) => {
+        const python = spawn('python3', [SCRIPT_PATH, ...args], {
+          cwd: process.cwd(),
+          env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
+        });
 
-    python.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
+        let stdout = '';
+        let stderr = '';
+        let timeoutId: NodeJS.Timeout | null = null;
 
-    python.on('close', (code) => {
-      if (code !== 0) {
-        reject(new AKShareError(`Python exited with code ${code}: ${stderr}`));
-        return;
+        // 设置超时（30秒）
+        timeoutId = setTimeout(() => {
+          python.kill();
+          reject(new AKShareError('Python process timeout (30s)'));
+        }, 30000);
+
+        python.stdout.on('data', (data) => {
+          stdout += data.toString();
+        });
+
+        python.stderr.on('data', (data) => {
+          stderr += data.toString();
+        });
+
+        python.on('close', (code) => {
+          if (timeoutId) clearTimeout(timeoutId);
+
+          if (code !== 0) {
+            reject(new AKShareError(`Python exited with code ${code}: ${stderr}`));
+            return;
+          }
+
+          try {
+            const result = JSON.parse(stdout) as AKShareResponse<T>;
+            if (result.error) {
+              reject(new AKShareError(result.error));
+              return;
+            }
+            resolve(result as T);
+          } catch (e) {
+            reject(new AKShareError(`Failed to parse response: ${stdout}`));
+          }
+        });
+
+        python.on('error', (err) => {
+          if (timeoutId) clearTimeout(timeoutId);
+          reject(new AKShareError(`Failed to start Python: ${err.message}`));
+        });
+      });
+    } catch (error) {
+      lastError = error as Error;
+
+      // 如果是最后一次尝试，直接抛出错误
+      if (attempt === maxRetries) {
+        break;
       }
 
-      try {
-        const result = JSON.parse(stdout) as AKShareResponse<T>;
-        if (result.error) {
-          reject(new AKShareError(result.error));
-          return;
-        }
-        resolve(result as T);
-      } catch (e) {
-        reject(new AKShareError(`Failed to parse response: ${stdout}`));
-      }
-    });
+      // 检查是否为可重试的错误（网络错误、超时等）
+      const errorMessage = lastError.message.toLowerCase();
+      const isRetryable =
+        errorMessage.includes('connection') ||
+        errorMessage.includes('timeout') ||
+        errorMessage.includes('remote') ||
+        errorMessage.includes('network');
 
-    python.on('error', (err) => {
-      reject(new AKShareError(`Failed to start Python: ${err.message}`));
-    });
-  });
+      if (!isRetryable) {
+        // 不可重试的错误，直接抛出
+        break;
+      }
+
+      // 指数退避：1s, 2s, 4s
+      const waitTime = Math.pow(2, attempt - 1) * 1000;
+      console.warn(`[AKShare] 第 ${attempt} 次重试失败，${waitTime}ms 后重试:`, lastError.message);
+      await delay(waitTime);
+    }
+  }
+
+  throw lastError;
 }
 
 export class AKShareProvider implements IQuoteProvider {
@@ -402,7 +455,7 @@ export class AKShareProvider implements IQuoteProvider {
       return result;
     } catch (error) {
       console.error('[AKShare] 获取 A 股股票池失败:', error);
-      return [];
+      throw error;
     }
   }
 }

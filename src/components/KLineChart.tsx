@@ -151,13 +151,13 @@ const B1MarkerShape = ({ cx, cy }: { cx?: number; cy?: number }) => {
 };
 
 const getBandSize = (
-  axis: { bandSize?: number; scale?: { bandwidth?: () => number } } | undefined,
+  axis: { bandSize?: number; scale?: ((value: number) => number) | { bandwidth?: () => number } } | undefined,
   width: number,
   count: number,
 ) => {
   if (axis) {
     if (typeof axis.bandSize === 'number') return axis.bandSize;
-    if (axis.scale && typeof axis.scale.bandwidth === 'function') {
+    if (axis.scale && typeof axis.scale === 'object' && 'bandwidth' in axis.scale && typeof axis.scale.bandwidth === 'function') {
       return axis.scale.bandwidth();
     }
   }
@@ -208,7 +208,7 @@ const CandlestickLayer = ({
   };
   const resolveX = (entry: CandleData, index: number) => {
     const fromScale = xAxis?.scale ? xAxis.scale(entry.timestamp) : undefined;
-    if (Number.isFinite(fromScale)) {
+    if (fromScale !== undefined && Number.isFinite(fromScale)) {
       return fromScale + (bandSize ? bandSize / 2 : 0);
     }
     return offsetLeft + fallbackBand * (index + 0.5);
@@ -315,7 +315,7 @@ export const KLineChart = ({
             } as CandleData;
           })
           .filter((item: CandleData | null): item is CandleData => !!item)
-          .sort((a, b) => a.timestamp - b.timestamp);
+          .sort((a: CandleData, b: CandleData) => a.timestamp - b.timestamp);
         if (alive) {
           setData(formatted);
         }
@@ -428,7 +428,7 @@ export const KLineChart = ({
   }, [chartData]);
 
   const yDomain = useMemo(() => {
-    if (chartData.length === 0) return ['dataMin', 'dataMax'] as const;
+    if (chartData.length === 0) return ['dataMin', 'dataMax'];
     const values = chartData.flatMap((item) => [
       item.low,
       item.high,
@@ -439,11 +439,11 @@ export const KLineChart = ({
     const minValue = Math.min(...numericValues);
     const maxValue = Math.max(...numericValues);
     if (!Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
-      return ['dataMin', 'dataMax'] as const;
+      return ['dataMin', 'dataMax'];
     }
     const span = maxValue - minValue;
     const padding = span !== 0 ? span * Y_PADDING_RATIO : Math.abs(maxValue) * Y_PADDING_RATIO;
-    return [minValue - padding, maxValue + padding] as const;
+    return [minValue - padding, maxValue + padding];
   }, [chartData]);
 
   const recordMarkers = useMemo(() => {

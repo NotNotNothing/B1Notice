@@ -1,0 +1,49 @@
+services:
+  b1notice-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      target: dev
+
+    container_name: b1notice-dev
+
+    ports:
+      - "3000:3000"
+
+    environment:
+      - NODE_ENV=development
+      - DB_TYPE=sqlite
+      - DATABASE_URL=file:./dev.db
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-B1Notice}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - PUSHDEER_KEY=${PUSHDEER_KEY}
+      - LONGPORT_APP_KEY=${LONGPORT_APP_KEY}
+      - LONGPORT_APP_SECRET=${LONGPORT_APP_SECRET}
+      - LONGPORT_ACCESS_TOKEN=${LONGPORT_ACCESS_TOKEN}
+      - CLOSING_SCREENER_MAX_SYMBOLS=${CLOSING_SCREENER_MAX_SYMBOLS:-20}
+
+    volumes:
+      # 挂载源代码，支持热重载
+      - ./src:/app/src:delegated
+      - ./public:/app/public:delegated
+      - ./prisma:/app/prisma:delegated
+      - ./scripts:/app/scripts:delegated
+      - ./package.json:/app/package.json:ro
+
+      # 使用命名卷存储 node_modules，避免本地和容器冲突
+      - node_modules:/app/node_modules
+
+    # 开发环境重启策略
+    restart: unless-stopped
+
+    # 健康检查
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  node_modules:
+    driver: local

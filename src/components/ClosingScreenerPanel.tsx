@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshCw, SearchCheck } from 'lucide-react';
+import { BookOpen, RefreshCw, SearchCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -10,12 +10,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { formatBeijingDateTime } from '@/lib/time';
 import type { ClosingScreenerResults, ClosingScreenerRule } from '@/types/closing-screener';
+import type { TaskApiEnvelope, TaskRunDetailView, TaskRunView } from '@/types/task';
+import { TdxFormulaLibrary } from '@/components/TdxFormulaLibrary';
 
 const defaultRule: ClosingScreenerRule = {
   enabled: false,
   notifyEnabled: false,
+  mode: 'BASIC',
+  formula: '',
   maxDailyJ: 20,
   maxWeeklyJ: 35,
   requirePriceAboveBBI: true,
@@ -37,12 +42,49 @@ function parseNullableInteger(value: string): number | null {
   return parsed === null ? null : Math.trunc(parsed);
 }
 
+async function readTaskEnvelope<T>(response: Response): Promise<T> {
+  const payload = (await response.json()) as TaskApiEnvelope<T>;
+
+  if (!response.ok || !payload.success) {
+    throw new Error(payload.message || '请求失败');
+  }
+
+  return payload.data;
+}
+
+interface TestResult {
+  totalTested: number;
+  matchedCount: number;
+  matchedStocks: Array<{
+    symbol: string;
+    name: string;
+    market: string;
+    price: number;
+    changePercent: number;
+    volume: number;
+    dailyK: number;
+    dailyD: number;
+    dailyJ: number;
+    weeklyJ: number;
+    bbi: number;
+    aboveBBIConsecutiveDaysCount: number;
+    belowBBIConsecutiveDaysCount: number;
+    volumeRatio: number;
+    reasons: string[];
+  }>;
+  errors: string[];
+}
+
 export function ClosingScreenerPanel() {
   const [rule, setRule] = useState<ClosingScreenerRule>(defaultRule);
   const [results, setResults] = useState<ClosingScreenerResults | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
+  const [activeRun, setActiveRun] = useState<TaskRunView | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<TestResult | null>(null);
+  const [showFormulaLibrary, setShowFormulaLibrary] = useState(false);
 
   const matchedCount = results?.matchedStocks.length ?? 0;
   const runLabel = useMemo(() => {
@@ -83,6 +125,41 @@ export function ClosingScreenerPanel() {
     }
   };
 
+  const handleTest = async () => {
+    if (!rule.formula.trim()) {
+      toast.error('请先输入通达信公式');
+      return;
+    }
+
+    try {
+      setTesting(true);
+      setTestResult(null);
+      const response = await fetch('/api/closing-screener/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ formula: rule.formula }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json();
+        throw new Error(payload.error || '测试通达信公式失败');
+      }
+
+      const payload = await response.json();
+      setTestResult(payload.data);
+      
+      if (payload.data.matchedCount > 0) {
+        toast.success(`测试完成，自选股中命中 ${payload.data.matchedCount} 只`);
+      } else {
+        toast.info(`测试完成，自选股中没有命中结果`);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '测试通达信公式失败');
+    } finally {
+      setTesting(false);
+    }
+  };
+
   useEffect(() => {
     void loadData();
   }, []);
@@ -103,7 +180,7 @@ export function ClosingScreenerPanel() {
 
       const nextRule = await response.json();
       setRule(nextRule);
-      toast.success('收盘选股配置已保存');
+      toast.success('收盘选股配置已保存，请手动执行一次以生成最新结果');
       await loadData();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '保存收盘选股配置失败');
@@ -119,13 +196,42 @@ export function ClosingScreenerPanel() {
         method: 'POST',
       });
 
-      const payload = await response.json();
-      if (!response.ok) {
-        throw new Error(payload.error || '执行收盘选股失败');
+      const taskRun = await readTaskEnvelope<TaskRunView>(response);
+      setActiveRun(taskRun);
+      toast.success(taskRun.summary || '收盘选股任务已触发，可在任务中心查看全量状态');
+
+      const blockingRunId =
+        typeof taskRun.metadata?.blockingRunId === 'string'
+          ? taskRun.metadata.blockingRunId
+          : null;
+      const targetRunId = taskRun.status === 'SKIPPED' && blockingRunId ? blockingRunId : taskRun.id;
+
+      if (!targetRunId) {
+        return;
       }
 
-      setResults(payload.results);
-      toast.success(payload.reused ? '今日收盘选股结果已存在，已为你刷新' : '收盘选股执行完成');
+      for (let attempt = 0; attempt < 180; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        const nextRun = await fetch(`/api/tasks/runs/${targetRunId}`).then((nextResponse) =>
+          readTaskEnvelope<TaskRunDetailView>(nextResponse),
+        );
+
+        setActiveRun(nextRun);
+
+        if (['COMPLETED', 'FAILED', 'STOPPED', 'SKIPPED'].includes(nextRun.status)) {
+          if (nextRun.status === 'COMPLETED' || nextRun.status === 'SKIPPED') {
+            await loadData();
+            toast.success(nextRun.summary || '收盘选股已完成');
+          } else if (nextRun.status === 'STOPPED') {
+            toast.error('收盘选股任务已停止');
+          } else {
+            throw new Error(nextRun.errorMessage || nextRun.summary || '执行收盘选股失败');
+          }
+
+          break;
+        }
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '执行收盘选股失败');
     } finally {
@@ -183,82 +289,226 @@ export function ClosingScreenerPanel() {
                 onCheckedChange={(checked) => setRule((current) => ({ ...current, notifyEnabled: checked }))}
               />
             </div>
-            <div className='flex items-center justify-between'>
+            <div className='space-y-3 rounded-2xl border border-slate-200 p-3 dark:border-slate-700'>
               <div>
-                <Label className='text-base'>要求收盘价站上 BBI</Label>
-                <p className='text-sm text-slate-500 dark:text-slate-300'>关闭后只按 KDJ 和量能过滤</p>
+                <Label className='text-base'>选股模式</Label>
+                <p className='text-sm text-slate-500 dark:text-slate-300'>
+                  基础条件适合简单阈值，通达信公式适合复杂组合条件。
+                </p>
               </div>
-              <Switch
-                checked={rule.requirePriceAboveBBI}
-                onCheckedChange={(checked) =>
-                  setRule((current) => ({ ...current, requirePriceAboveBBI: checked }))
-                }
-              />
+              <div className='flex gap-2'>
+                <Button
+                  type='button'
+                  variant={rule.mode === 'BASIC' ? 'default' : 'outline'}
+                  className='rounded-xl'
+                  onClick={() => setRule((current) => ({ ...current, mode: 'BASIC' }))}
+                >
+                  基础条件
+                </Button>
+                <Button
+                  type='button'
+                  variant={rule.mode === 'FORMULA' ? 'default' : 'outline'}
+                  className='rounded-xl'
+                  onClick={() => setRule((current) => ({ ...current, mode: 'FORMULA' }))}
+                >
+                  通达信公式
+                </Button>
+              </div>
             </div>
           </div>
 
-          <div className='grid gap-4 rounded-2xl border border-slate-200 p-4 dark:border-slate-700 sm:grid-cols-2'>
-            <div className='space-y-2'>
-              <Label htmlFor='daily-j'>日线 J 上限</Label>
-              <Input
-                id='daily-j'
-                type='number'
-                step='0.1'
-                value={rule.maxDailyJ ?? ''}
-                onChange={(event) =>
-                  setRule((current) => ({
-                    ...current,
-                    maxDailyJ: parseNullableNumber(event.target.value),
-                  }))
-                }
-              />
+          {rule.mode === 'FORMULA' ? (
+            <div className='space-y-4 lg:col-span-2'>
+              <div className='rounded-2xl border border-slate-200 p-4 dark:border-slate-700'>
+                <div className='mb-4 flex items-center justify-between'>
+                  <Label htmlFor='tdx-formula' className='text-base'>
+                    通达信公式
+                  </Label>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    onClick={() => setShowFormulaLibrary(!showFormulaLibrary)}
+                    className='rounded-xl'
+                  >
+                    <BookOpen className='mr-2 h-4 w-4' />
+                    {showFormulaLibrary ? '隐藏公式库' : '公式库'}
+                  </Button>
+                </div>
+                <Textarea
+                  id='tdx-formula'
+                  value={rule.formula}
+                  onChange={(event) =>
+                    setRule((current) => ({ ...current, formula: event.target.value }))
+                  }
+                  className='min-h-[180px] font-mono text-sm'
+                  placeholder={'XG: CROSS(C, BBI) AND J < 20 AND VOLRATIO > 1.2;'}
+                />
+                <div className='mt-4 flex gap-2'>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    onClick={handleTest}
+                    disabled={testing || !rule.formula.trim()}
+                    className='rounded-xl'
+                  >
+                    {testing ? '测试中...' : '用自选股测试'}
+                  </Button>
+                  {testResult && (
+                    <div className='flex items-center gap-2 text-sm'>
+                      <span className='text-slate-500 dark:text-slate-300'>
+                        测试结果: {testResult.matchedCount}/{testResult.totalTested} 命中
+                      </span>
+                      {testResult.errors.length > 0 && (
+                        <span className='text-amber-600 dark:text-amber-400'>
+                          ({testResult.errors.length} 个错误)
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                {testResult && testResult.matchedStocks.length > 0 && (
+                  <div className='mt-4 space-y-2'>
+                    <Label className='text-sm font-medium'>命中的自选股:</Label>
+                    <div className='max-h-[300px] space-y-2 overflow-y-auto'>
+                      {testResult.matchedStocks.map((stock) => (
+                        <div
+                          key={stock.symbol}
+                          className='flex items-center justify-between rounded-lg border border-slate-200 p-3 dark:border-slate-700'
+                        >
+                          <div>
+                            <p className='font-medium text-slate-900 dark:text-white'>
+                              {stock.name}
+                            </p>
+                            <p className='text-sm text-slate-500 dark:text-slate-300'>
+                              {stock.symbol}
+                            </p>
+                          </div>
+                          <div className='text-right'>
+                            <p className='font-medium text-slate-900 dark:text-white'>
+                              {stock.price.toFixed(2)}
+                            </p>
+                            <p className='text-sm text-slate-500 dark:text-slate-300'>
+                              J: {stock.dailyJ.toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {testResult && testResult.errors.length > 0 && (
+                  <div className='mt-4 space-y-2'>
+                    <Label className='text-sm font-medium text-amber-600 dark:text-amber-400'>
+                      错误信息:
+                    </Label>
+                    <div className='max-h-[150px] space-y-1 overflow-y-auto text-sm text-slate-500 dark:text-slate-300'>
+                      {testResult.errors.map((error, index) => (
+                        <p key={index} className='text-amber-600 dark:text-amber-400'>
+                          {error}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className='mt-4 space-y-2 text-sm text-slate-500 dark:text-slate-300'>
+                  <p>
+                    支持变量：C/O/H/L/V、K/D/J、BBI、WJ、VOLRATIO、ABOVEBBIDAYS、BELOWBBIDAYS、CHANGEPCT。
+                  </p>
+                  <p>
+                    支持函数：REF、MA、EMA、HHV、LLV、ABS、MAX、MIN、IF、COUNT、EVERY、EXIST、CROSS。
+                  </p>
+                  <p>支持写法：赋值 `A:=...;`，以及最终选股语句 `XG: ...;`。</p>
+                </div>
+              </div>
+              {showFormulaLibrary && (
+                <TdxFormulaLibrary
+                  onSelectFormula={(formula) => {
+                    setRule((current) => ({ ...current, formula }));
+                    setShowFormulaLibrary(false);
+                  }}
+                  currentFormula={rule.formula}
+                />
+              )}
             </div>
-            <div className='space-y-2'>
-              <Label htmlFor='weekly-j'>周线 J 上限</Label>
-              <Input
-                id='weekly-j'
-                type='number'
-                step='0.1'
-                value={rule.maxWeeklyJ ?? ''}
-                onChange={(event) =>
-                  setRule((current) => ({
-                    ...current,
-                    maxWeeklyJ: parseNullableNumber(event.target.value),
-                  }))
-                }
-              />
+          ) : (
+            <div className='grid gap-4 rounded-2xl border border-slate-200 p-4 dark:border-slate-700 sm:grid-cols-2'>
+              <div className='space-y-2'>
+                <Label htmlFor='daily-j'>日线 J 上限</Label>
+                <Input
+                  id='daily-j'
+                  type='number'
+                  step='0.1'
+                  value={rule.maxDailyJ ?? ''}
+                  onChange={(event) =>
+                    setRule((current) => ({
+                      ...current,
+                      maxDailyJ: parseNullableNumber(event.target.value),
+                    }))
+                  }
+                />
+              </div>
+              <div className='space-y-2'>
+                <Label htmlFor='weekly-j'>周线 J 上限</Label>
+                <Input
+                  id='weekly-j'
+                  type='number'
+                  step='0.1'
+                  value={rule.maxWeeklyJ ?? ''}
+                  onChange={(event) =>
+                    setRule((current) => ({
+                      ...current,
+                      maxWeeklyJ: parseNullableNumber(event.target.value),
+                    }))
+                  }
+                />
+              </div>
+              <div className='space-y-2'>
+                <Label htmlFor='bbi-days'>连续站上 BBI 天数</Label>
+                <Input
+                  id='bbi-days'
+                  type='number'
+                  step='1'
+                  value={rule.minAboveBBIDays ?? ''}
+                  onChange={(event) =>
+                    setRule((current) => ({
+                      ...current,
+                      minAboveBBIDays: parseNullableInteger(event.target.value),
+                    }))
+                  }
+                />
+              </div>
+              <div className='space-y-2'>
+                <Label htmlFor='volume-ratio'>量比下限</Label>
+                <Input
+                  id='volume-ratio'
+                  type='number'
+                  step='0.1'
+                  value={rule.minVolumeRatio ?? ''}
+                  onChange={(event) =>
+                    setRule((current) => ({
+                      ...current,
+                      minVolumeRatio: parseNullableNumber(event.target.value),
+                    }))
+                  }
+                />
+              </div>
+              <div className='space-y-2 sm:col-span-2'>
+                <div className='flex items-center justify-between rounded-xl border border-slate-200 px-3 py-2 dark:border-slate-700'>
+                  <div>
+                    <Label className='text-base'>要求收盘价站上 BBI</Label>
+                    <p className='text-sm text-slate-500 dark:text-slate-300'>关闭后只按 KDJ 和量能过滤</p>
+                  </div>
+                  <Switch
+                    checked={rule.requirePriceAboveBBI}
+                    onCheckedChange={(checked) =>
+                      setRule((current) => ({ ...current, requirePriceAboveBBI: checked }))
+                    }
+                  />
+                </div>
+              </div>
             </div>
-            <div className='space-y-2'>
-              <Label htmlFor='bbi-days'>连续站上 BBI 天数</Label>
-              <Input
-                id='bbi-days'
-                type='number'
-                step='1'
-                value={rule.minAboveBBIDays ?? ''}
-                onChange={(event) =>
-                  setRule((current) => ({
-                    ...current,
-                    minAboveBBIDays: parseNullableInteger(event.target.value),
-                  }))
-                }
-              />
-            </div>
-            <div className='space-y-2'>
-              <Label htmlFor='volume-ratio'>量比下限</Label>
-              <Input
-                id='volume-ratio'
-                type='number'
-                step='0.1'
-                value={rule.minVolumeRatio ?? ''}
-                onChange={(event) =>
-                  setRule((current) => ({
-                    ...current,
-                    minVolumeRatio: parseNullableNumber(event.target.value),
-                  }))
-                }
-              />
-            </div>
-          </div>
+          )}
 
           <div className='lg:col-span-2 flex justify-end'>
             <Button onClick={handleSave} disabled={saving} className='rounded-xl'>
@@ -290,6 +540,42 @@ export function ClosingScreenerPanel() {
           </CardContent>
         </Card>
       </div>
+
+      {activeRun ? (
+        <Card className='rounded-3xl border border-slate-200 bg-white/90 shadow-sm dark:border-slate-800 dark:bg-slate-900/80'>
+          <CardContent className='grid gap-4 p-5 md:grid-cols-4'>
+            <div>
+              <p className='text-sm text-slate-500 dark:text-slate-300'>任务状态</p>
+              <p className='mt-2 text-lg font-semibold text-slate-900 dark:text-white'>
+                {activeRun.status}
+              </p>
+            </div>
+            <div>
+              <p className='text-sm text-slate-500 dark:text-slate-300'>任务进度</p>
+              <p className='mt-2 text-lg font-semibold text-slate-900 dark:text-white'>
+                {activeRun.progressCurrent ?? 0}/{activeRun.progressTotal ?? 0}
+              </p>
+            </div>
+            <div>
+              <p className='text-sm text-slate-500 dark:text-slate-300'>最近更新时间</p>
+              <p className='mt-2 text-lg font-semibold text-slate-900 dark:text-white'>
+                {formatBeijingDateTime(activeRun.updatedAt, {
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </p>
+            </div>
+            <div>
+              <p className='text-sm text-slate-500 dark:text-slate-300'>任务摘要</p>
+              <p className='mt-2 text-sm font-medium text-slate-900 dark:text-white'>
+                {activeRun.summary || '任务已进入队列'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className='grid grid-cols-1 gap-4 xl:grid-cols-2'>
         {results?.matchedStocks.length ? (

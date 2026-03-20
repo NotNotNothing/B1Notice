@@ -154,6 +154,8 @@ model User {
   b1LastNotifiedAt      DateTime?
   closingScreenerEnabled         Boolean   @default(false) // 是否开启收盘选股
   closingScreenerNotifyEnabled   Boolean   @default(false) // 是否开启收盘选股通知
+  closingScreenerMode            String    @default("BASIC") // BASIC, FORMULA
+  closingScreenerFormula         String?   // 通达信公式
   closingScreenerMaxDailyJ       Float?    @default(20.0) // 日线J值上限
   closingScreenerMaxWeeklyJ      Float?    @default(35.0) // 周线J值上限
   closingScreenerRequirePriceAboveBBI Boolean @default(true) // 是否要求收盘价站上BBI
@@ -165,6 +167,7 @@ model User {
   monitors              Monitor[]
   trades                TradeRecord[]
   marketScreeningResults MarketScreeningResult[]
+  tdxFormulas            TdxFormula[]
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
   sessions              Session[]
@@ -233,6 +236,73 @@ model MarketScreeningResult {
   @@index([userId, createdAt])
 }
 
+model TaskDefinition {
+  id            String    @id @default(cuid())
+  key           String    @unique
+  name          String
+  category      String
+  schedule      String?
+  isEnabled     Boolean   @default(true)
+  isPaused      Boolean   @default(false)
+  supportsPause Boolean   @default(true)
+  supportsStop  Boolean   @default(true)
+  supportsRetry Boolean   @default(true)
+  maxRetries    Int       @default(3)
+  lastRunAt     DateTime?
+  lastSuccessAt DateTime?
+  lastFailedAt  DateTime?
+  lastStatus    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  runs          TaskRun[]
+
+  @@index([category])
+  @@index([isPaused, isEnabled])
+}
+
+model TaskRun {
+  id               String         @id @default(cuid())
+  taskDefinitionId String
+  taskDefinition   TaskDefinition @relation(fields: [taskDefinitionId], references: [id])
+  status           String         @default("PENDING")
+  triggeredBy      String         @default("SYSTEM")
+  runReason        String?
+  retryOfRunId     String?
+  retryOfRun       TaskRun?       @relation("TaskRunRetry", fields: [retryOfRunId], references: [id])
+  retries          TaskRun[]      @relation("TaskRunRetry")
+  startedAt        DateTime?
+  finishedAt       DateTime?
+  errorMessage     String?
+  attempt          Int            @default(1)
+  progressCurrent  Int?
+  progressTotal    Int?
+  progressLabel    String?
+  summary          String?
+  metadata         String?
+  stopRequestedAt  DateTime?
+  pausedAt         DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  events           TaskRunEvent[]
+
+  @@index([taskDefinitionId, createdAt])
+  @@index([status, createdAt])
+  @@index([retryOfRunId])
+}
+
+model TaskRunEvent {
+  id        String   @id @default(cuid())
+  taskRunId String
+  taskRun   TaskRun  @relation(fields: [taskRunId], references: [id])
+  level     String   @default("INFO")
+  eventType String
+  message   String
+  details   String?
+  createdAt DateTime @default(now())
+
+  @@index([taskRunId, createdAt])
+}
+
 model Account {
   id                 String  @id @default(cuid())
   userId             String
@@ -287,4 +357,19 @@ model TradeRecord {
 
   @@index([userId, symbol])
   @@unique([userId, symbol, side, price, quantity, tradedAt])
+}
+
+model TdxFormula {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  name        String
+  formula     String
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
 }

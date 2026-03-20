@@ -87,10 +87,10 @@ export async function withAuth<T>(
   handler: (user: AuthenticatedUser) => Promise<NextResponse<ApiResponse<T>>>
 ): Promise<NextResponse<ApiResponse<T>>> {
   const user = await requireUser();
-  
+
   if (!user) {
-    return unauthorizedError();
+    return unauthorizedError() as NextResponse<ApiResponse<T>>;
   }
-  
+
   return handler(user);
 }

@@ -7,13 +7,61 @@ AKShare 数据获取脚本
 import sys
 import json
 import asyncio
+import time
 from datetime import datetime
+from typing import Optional
+import pandas as pd
 
 try:
     import akshare as ak
+    import requests
+    # 设置 requests 超时
+    requests.adapters.DEFAULT_RETRIES = 3
 except ImportError:
     print(json.dumps({"error": "akshare not installed, run: pip install akshare"}))
     sys.exit(1)
+
+# 请求限流：记录上次请求时间
+_last_request_time: float = 0
+_request_interval: float = 0.5  # 每个请求之间最少间隔 0.5 秒
+
+
+def rate_limit():
+    """请求限流，避免触发 API 频率限制"""
+    global _last_request_time
+    elapsed = time.time() - _last_request_time
+    if elapsed < _request_interval:
+        time.sleep(_request_interval - elapsed)
+    _last_request_time = time.time()
+
+
+def safe_api_call(func, *args, max_retries=2, **kwargs):
+    """
+    安全的 API 调用包装器，带重试机制
+    """
+    for attempt in range(max_retries):
+        try:
+            rate_limit()
+            return func(*args, **kwargs)
+        except Exception as e:
+            error_msg = str(e).lower()
+            # 检查是否为可重试的错误
+            is_retryable = (
+                'connection' in error_msg or
+                'timeout' in error_msg or
+                'remote' in error_msg or
+                'network' in error_msg
+            )
+
+            if is_retryable and attempt < max_retries - 1:
+                wait_time = (attempt + 1) * 2  # 2s, 4s
+                print(f"警告: API 调用失败，{wait_time}秒后重试 (尝试 {attempt + 1}/{max_retries}): {e}", file=sys.stderr)
+                time.sleep(wait_time)
+                continue
+
+            raise e
+
+    return None
 
 
 def format_symbol(symbol: str, market: str = None) -> str:
@@ -43,18 +91,18 @@ def get_quote(symbol: str) -> dict:
     try:
         code = format_symbol(symbol)
         market = get_market_from_code(code)
-        
-        df = ak.stock_zh_a_spot_em()
-        row = df[df['代码'] == code]
-        
-        if row.empty:
+        xq_quote = get_quote_from_xq(market.upper(), code)
+        if xq_quote is not None:
+            return xq_quote
+
+        data = get_quote_from_spot_snapshot(code)
+        if data is None:
             return {"error": f"Stock {symbol} not found"}
-        
-        data = row.iloc[0]
+
         price = float(data['最新价'])
         prev_close = float(data['昨收'])
         change_rate = ((price - prev_close) / prev_close * 100) if prev_close > 0 else 0
-        
+
         return {
             "price": price,
             "volume": float(data['成交量']) if data['成交量'] else 0,
@@ -69,26 +117,50 @@ def get_quote(symbol: str) -> dict:
 def get_quotes(symbols: list) -> list:
     """批量获取实时行情"""
     try:
-        df = ak.stock_zh_a_spot_em()
         results = []
-        
+        df = None
+
         for symbol in symbols:
             code = format_symbol(symbol)
             market = get_market_from_code(code)
+
+            xq_quote = get_quote_from_xq(market.upper(), code)
+            if xq_quote is not None:
+                results.append({
+                    "symbol": symbol,
+                    "price": xq_quote["price"],
+                    "volume": xq_quote["volume"],
+                    "changePercent": xq_quote["changeRate"],
+                    "nameCn": xq_quote["nameCn"],
+                    "market": xq_quote["market"],
+                    "name": symbol
+                })
+                continue
+
+            if df is None:
+                df = get_spot_snapshot()
+
+            if df is None or df.empty:
+                results.append({
+                    "symbol": symbol,
+                    "error": "Failed to fetch market data"
+                })
+                continue
+
             row = df[df['代码'] == code]
-            
+
             if row.empty:
                 results.append({
                     "symbol": symbol,
                     "error": f"Stock {symbol} not found"
                 })
                 continue
-            
+
             data = row.iloc[0]
             price = float(data['最新价'])
             prev_close = float(data['昨收'])
             change_rate = ((price - prev_close) / prev_close * 100) if prev_close > 0 else 0
-            
+
             results.append({
                 "symbol": symbol,
                 "price": price,
@@ -98,10 +170,81 @@ def get_quotes(symbols: list) -> list:
                 "market": market.upper(),
                 "name": symbol
             })
-        
+
         return results
     except Exception as e:
         return [{"error": str(e)}]
+
+
+def get_quote_from_xq(market: str, code: str):
+    xq_symbol = f"{market}{code}"
+    try:
+        df = safe_api_call(ak.stock_individual_spot_xq, symbol=xq_symbol)
+    except Exception:
+        return None
+
+    if df is None or df.empty:
+        return None
+
+    values = dict(zip(df['item'], df['value']))
+
+    latest = values.get('最新')
+    prev_close = values.get('昨收')
+    change_amount = values.get('涨跌')
+    change_percent = values.get('涨幅')
+    volume = values.get('成交量')
+    name = values.get('名称')
+    exchange = values.get('交易所', market)
+
+    if latest is None and prev_close is not None and change_amount is not None:
+        latest = float(prev_close) + float(change_amount)
+
+    if latest is None or prev_close is None or volume is None or name is None:
+        return None
+
+    if change_percent is None:
+        change_percent = ((float(latest) - float(prev_close)) / float(prev_close) * 100) if float(prev_close) > 0 else 0
+
+    return {
+        "price": float(latest),
+        "volume": float(volume),
+        "changeRate": round(float(change_percent), 2),
+        "nameCn": str(name),
+        "market": str(exchange).upper(),
+    }
+
+
+def get_spot_snapshot():
+    """获取 A 股实时快照，优先使用更稳定的新浪源，失败时回退东财源"""
+    try:
+        df = safe_api_call(ak.stock_zh_a_spot)
+        if df is not None and not df.empty:
+            normalized_df = df.copy()
+            normalized_df['代码'] = normalized_df['代码'].astype(str).str.replace(r'^(?:sh|sz|bj)', '', regex=True).str.zfill(6)
+            return normalized_df
+    except Exception:
+        pass
+
+    try:
+        df = safe_api_call(ak.stock_zh_a_spot_em)
+        if df is not None and not df.empty:
+            return df
+    except Exception:
+        pass
+
+    return None
+
+
+def get_quote_from_spot_snapshot(code: str):
+    df = get_spot_snapshot()
+    if df is None or df.empty:
+        return None
+
+    row = df[df['代码'] == code]
+    if row.empty:
+        return None
+
+    return row.iloc[0]
 
 
 def get_kline(symbol: str, period: str = 'daily', count: int = 100) -> list:
@@ -109,30 +252,48 @@ def get_kline(symbol: str, period: str = 'daily', count: int = 100) -> list:
     try:
         code = format_symbol(symbol)
         market = get_market_from_code(code)
-        adjust = ''  # 不复权
-        
-        if period == 'weekly':
-            df = ak.stock_zh_a_hist(symbol=code, period='weekly', adjust=adjust)
-        else:
-            df = ak.stock_zh_a_hist(symbol=code, period='daily', adjust=adjust)
-        
-        if df.empty:
+        daily_symbol = f"{market}{code}"
+        df = safe_api_call(ak.stock_zh_a_daily, symbol=daily_symbol)
+
+        if df is None or df.empty:
             return []
-        
+
+        df = df.reset_index()
+        if 'date' not in df.columns:
+            df = df.rename(columns={df.columns[0]: 'date'})
+
+        df['date'] = pd.to_datetime(df['date'])
+        df = df.sort_values('date')
+
+        if period == 'weekly':
+            weekly_df = (
+                df.assign(week=df['date'].dt.to_period('W-FRI'))
+                .groupby('week', as_index=False)
+                .agg({
+                    'date': 'last',
+                    'open': 'first',
+                    'high': 'max',
+                    'low': 'min',
+                    'close': 'last',
+                    'volume': 'sum',
+                })
+            )
+            df = weekly_df
+
         df = df.tail(count)
-        
+
         result = []
         for _, row in df.iterrows():
-            timestamp = int(datetime.strptime(str(row['日期']), '%Y-%m-%d').timestamp() * 1000)
+            timestamp = int(pd.Timestamp(row['date']).timestamp() * 1000)
             result.append({
-                "open": float(row['开盘']),
-                "high": float(row['最高']),
-                "low": float(row['最低']),
-                "close": float(row['收盘']),
-                "volume": float(row['成交量']) if row['成交量'] else 0,
+                "open": float(row['open']),
+                "high": float(row['high']),
+                "low": float(row['low']),
+                "close": float(row['close']),
+                "volume": float(row['volume']) if row['volume'] else 0,
                 "timestamp": timestamp
             })
-        
+
         return result
     except Exception as e:
         return [{"error": str(e)}]
@@ -143,22 +304,33 @@ def get_stock_info(symbol: str) -> dict:
     try:
         code = format_symbol(symbol)
         market = get_market_from_code(code)
-        
-        df = ak.stock_individual_info_em(symbol=code)
-        
+        xq_quote = get_quote_from_xq(market.upper(), code)
+
+        if xq_quote is not None:
+            return {
+                "symbol": symbol,
+                "market": xq_quote["market"],
+                "nameCn": xq_quote["nameCn"],
+                "nameEn": ""
+            }
+
+        df = safe_api_call(ak.stock_individual_info_em, symbol=code)
+        if df is None:
+            return {"error": "Failed to fetch stock info"}
+
         info = {
             "symbol": symbol,
             "market": market.upper(),
             "nameCn": "",
             "nameEn": ""
         }
-        
+
         for _, row in df.iterrows():
             if row['item'] == '股票简称':
                 info['nameCn'] = row['value']
             elif row['item'] == '行业':
                 info['industry'] = row['value']
-        
+
         return info
     except Exception as e:
         return {"error": str(e)}
@@ -167,23 +339,41 @@ def get_stock_info(symbol: str) -> dict:
 def get_universe(market: str = 'A') -> list:
     """获取 A 股股票池"""
     try:
-        df = ak.stock_zh_a_spot_em()
-        if df.empty:
-            return []
-
         results = []
         normalized_market = market.upper()
-        for _, row in df.iterrows():
-            code = str(row['代码']).zfill(6)
-            detected_market = get_market_from_code(code).upper()
-            if normalized_market in ('SH', 'SZ') and detected_market != normalized_market:
-                continue
+        datasets = []
 
-            results.append({
-                "symbol": f"{code}.{detected_market}",
-                "name": row['名称'],
-                "market": detected_market,
-            })
+        if normalized_market in ('A', 'SH'):
+            sh_df = safe_api_call(ak.stock_info_sh_name_code)
+            if sh_df is not None and not sh_df.empty:
+                datasets.append((
+                    sh_df,
+                    '证券代码',
+                    '证券简称',
+                    'SH',
+                ))
+
+        if normalized_market in ('A', 'SZ'):
+            sz_df = safe_api_call(ak.stock_info_sz_name_code)
+            if sz_df is not None and not sz_df.empty:
+                datasets.append((
+                    sz_df,
+                    'A股代码',
+                    'A股简称',
+                    'SZ',
+                ))
+
+        if not datasets:
+            return []
+
+        for df, code_column, name_column, detected_market in datasets:
+            for _, row in df.iterrows():
+                code = str(row[code_column]).zfill(6)
+                results.append({
+                    "symbol": f"{code}.{detected_market}",
+                    "name": str(row[name_column]).strip(),
+                    "market": detected_market,
+                })
 
         return results
     except Exception as e:
@@ -193,10 +383,15 @@ def get_universe(market: str = 'A') -> list:
 def check_available() -> dict:
     """检查 AKShare 是否可用"""
     try:
-        df = ak.stock_zh_a_spot_em()
+        sh_df = safe_api_call(ak.stock_info_sh_name_code)
+        if sh_df is not None and not sh_df.empty:
+            return {"available": True, "message": "AKShare is working"}
+
+        df = get_spot_snapshot()
         if df is not None and not df.empty:
             return {"available": True, "message": "AKShare is working"}
-        return {"available": False, "message": "No data returned"}
+
+        return {"available": False, "message": "No data returned from available endpoints"}
     except Exception as e:
         return {"available": False, "message": str(e)}
 

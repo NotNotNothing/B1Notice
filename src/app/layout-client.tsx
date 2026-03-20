@@ -4,7 +4,7 @@
  * @LastEditors: GodD6366 daichangchun6366@gmail.com
  * @LastEditTime: 2025-02-21 22:32:55
  * @FilePath: /B1Notice/src/app/layout-client.tsx
- * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
+ * @Description: 全局客户端布局 - 统一字体、壳层、主题
  */
 'use client';
 
@@ -15,7 +15,12 @@ import { SessionProvider, useSession } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
-const inter = Inter({ subsets: ['latin'] });
+// Inter 用于标题和数值显示
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+});
 
 function AuthCheck({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
@@ -35,8 +40,8 @@ function AuthCheck({ children }: { children: React.ReactNode }) {
 
   if (status === 'loading') {
     return (
-      <div className='flex items-center justify-center min-h-screen'>
-        <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900' />
+      <div className='flex items-center justify-center min-h-screen bg-background'>
+        <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-primary' />
       </div>
     );
   }
@@ -50,7 +55,7 @@ export default function RootLayoutClient({
   children: React.ReactNode;
 }) {
   return (
-    <html lang='zh-CN'>
+    <html lang='zh-CN' className={inter.variable}>
       <head>
         <meta name='apple-mobile-web-app-capable' content='yes' />
         <meta
@@ -58,11 +63,17 @@ export default function RootLayoutClient({
           content='width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0,user-scalable=no'
         />
       </head>
-      <body className={inter.className}>
+      <body className='font-sans antialiased'>
         <SessionProvider>
           <AuthCheck>{children}</AuthCheck>
         </SessionProvider>
-        <Toaster richColors position='top-right' />
+        <Toaster
+          richColors
+          position='top-center'
+          toastOptions={{
+            className: 'terminal-toast',
+          }}
+        />
       </body>
     </html>
   );

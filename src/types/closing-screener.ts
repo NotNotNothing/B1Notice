@@ -1,6 +1,10 @@
+export type ClosingScreenerMode = 'BASIC' | 'FORMULA';
+
 export interface ClosingScreenerRule {
   enabled: boolean;
   notifyEnabled: boolean;
+  mode: ClosingScreenerMode;
+  formula: string;
   maxDailyJ: number | null;
   maxWeeklyJ: number | null;
   requirePriceAboveBBI: boolean;

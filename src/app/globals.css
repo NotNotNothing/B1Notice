@@ -2,12 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: Arial, Helvetica, sans-serif;
-}
+/* ============================================
+   全局基础样式与终端语义 token 系统
+   ============================================ */
 
 @layer base {
   :root {
+    /* === 基础颜色系统 === */
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
     --card: 0 0% 100%;
@@ -27,14 +28,90 @@ body {
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
     --ring: 0 0% 3.9%;
+
+    /* === 图表颜色 === */
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
+
+    /* === 终端背景层级系统 === */
+    /* base: 最底层背景 */
+    --surface-base: 0 0% 98%;
+    /* panel: 面板背景 */
+    --surface-panel: 0 0% 100%;
+    /* elevated: 浮层/卡片背景 */
+    --surface-elevated: 0 0% 100%;
+    /* overlay: 遮罩层 */
+    --surface-overlay: 0 0% 0% / 0.5;
+
+    /* === 终端边框与描边 === */
+    --border-subtle: 0 0% 90%;
+    --border-default: 0 0% 85%;
+    --border-emphasis: 0 0% 70%;
+    --focus-ring: 217 91% 60%;
+
+    /* === 语义颜色 - 涨跌 === */
+    --semantic-up: 142 71% 45%; /* 上涨绿 */
+    --semantic-up-bg: 142 71% 45% / 0.1;
+    --semantic-down: 0 84% 60%; /* 下跌红 */
+    --semantic-down-bg: 0 84% 60% / 0.1;
+    --semantic-flat: 0 0% 45%; /* 平盘灰 */
+
+    /* === 语义颜色 - 任务状态 === */
+    --task-pending: 45 93% 47%; /* 待执行黄 */
+    --task-pending-bg: 45 93% 47% / 0.1;
+    --task-running: 217 91% 60%; /* 运行中蓝 */
+    --task-running-bg: 217 91% 60% / 0.1;
+    --task-success: 142 71% 45%; /* 成功绿 */
+    --task-success-bg: 142 71% 45% / 0.1;
+    --task-failed: 0 84% 60%; /* 失败红 */
+    --task-failed-bg: 0 84% 60% / 0.1;
+
+    /* === 语义颜色 - 告警级别 === */
+    --alert-info: 217 91% 60%; /* 信息蓝 */
+    --alert-info-bg: 217 91% 60% / 0.1;
+    --alert-warning: 45 93% 47%; /* 警告黄 */
+    --alert-warning-bg: 45 93% 47% / 0.1;
+    --alert-critical: 0 84% 60%; /* 严重红 */
+    --alert-critical-bg: 0 84% 60% / 0.1;
+
+    /* === 数据卡片发光效果 === */
+    --glow-up: 142 71% 45% / 0.15;
+    --glow-down: 0 84% 60% / 0.15;
+    --glow-focus: 217 91% 60% / 0.2;
+
+    /* === 滚动条颜色 === */
+    --scrollbar-track: 0 0% 95%;
+    --scrollbar-thumb: 0 0% 75%;
+    --scrollbar-thumb-hover: 0 0% 60%;
+
+    /* === 选区颜色 === */
+    --selection: 217 91% 60% / 0.3;
+
+    /* === 圆角 === */
     --radius: 0.5rem;
+    --radius-sm: calc(var(--radius) - 4px);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) + 4px);
+
+    /* === 阴影层级 === */
+    --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+    /* === 字体系统 === */
+    --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   }
+
+  /* === 暗色主题 === */
   .dark {
+    /* === 基础颜色系统 === */
     --background: 0 0% 3.9%;
     --foreground: 0 0% 98%;
     --card: 0 0% 3.9%;
@@ -54,30 +131,257 @@ body {
     --border: 0 0% 14.9%;
     --input: 0 0% 14.9%;
     --ring: 0 0% 83.1%;
+
+    /* === 图表颜色 === */
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-  }
-}
 
-@layer base {
+    /* === 终端背景层级系统（暗色） === */
+    --surface-base: 0 0% 5%;
+    --surface-panel: 0 0% 7%;
+    --surface-elevated: 0 0% 9%;
+    --surface-overlay: 0 0% 0% / 0.75;
+
+    /* === 终端边框与描边（暗色） === */
+    --border-subtle: 0 0% 15%;
+    --border-default: 0 0% 20%;
+    --border-emphasis: 0 0% 30%;
+    --focus-ring: 217 91% 60%;
+
+    /* === 语义颜色 - 涨跌（暗色） === */
+    --semantic-up: 142 71% 50%;
+    --semantic-up-bg: 142 71% 50% / 0.15;
+    --semantic-down: 0 84% 65%;
+    --semantic-down-bg: 0 84% 65% / 0.15;
+    --semantic-flat: 0 0% 60%;
+
+    /* === 语义颜色 - 任务状态（暗色） === */
+    --task-pending: 45 93% 55%;
+    --task-pending-bg: 45 93% 55% / 0.15;
+    --task-running: 217 91% 65%;
+    --task-running-bg: 217 91% 65% / 0.15;
+    --task-success: 142 71% 50%;
+    --task-success-bg: 142 71% 50% / 0.15;
+    --task-failed: 0 84% 65%;
+    --task-failed-bg: 0 84% 65% / 0.15;
+
+    /* === 语义颜色 - 告警级别（暗色） === */
+    --alert-info: 217 91% 65%;
+    --alert-info-bg: 217 91% 65% / 0.15;
+    --alert-warning: 45 93% 55%;
+    --alert-warning-bg: 45 93% 55% / 0.15;
+    --alert-critical: 0 84% 65%;
+    --alert-critical-bg: 0 84% 65% / 0.15;
+
+    /* === 数据卡片发光效果（暗色） === */
+    --glow-up: 142 71% 50% / 0.2;
+    --glow-down: 0 84% 65% / 0.2;
+    --glow-focus: 217 91% 65% / 0.25;
+
+    /* === 滚动条颜色（暗色） === */
+    --scrollbar-track: 0 0% 10%;
+    --scrollbar-thumb: 0 0% 25%;
+    --scrollbar-thumb-hover: 0 0% 35%;
+
+    /* === 选区颜色（暗色） === */
+    --selection: 217 91% 65% / 0.4;
+
+    /* === 阴影层级（暗色） === */
+    --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.5), 0 1px 2px -1px rgb(0 0 0 / 0.5);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5), 0 2px 4px -2px rgb(0 0 0 / 0.5);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5);
+    --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.5), 0 8px 10px -6px rgb(0 0 0 / 0.5);
+  }
+
+  /* === 全局基础样式 === */
   * {
     @apply border-border;
   }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* === 文本选区样式 === */
+  ::selection {
+    background-color: hsl(var(--selection));
+  }
+
+  /* === 滚动条样式 === */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background-color: hsl(var(--scrollbar-track));
+    border-radius: var(--radius);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--scrollbar-thumb));
+    border-radius: var(--radius);
+    transition: background-color 0.2s;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--scrollbar-thumb-hover));
+  }
+
+  /* === Focus ring 全局样式 === */
+  *:focus-visible {
+    outline: 2px solid hsl(var(--focus-ring));
+    outline-offset: 2px;
   }
 }
 
+/* ============================================
+   终端工具类
+   ============================================ */
 
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
+@layer utilities {
+  /* === 背景层级工具类 === */
+  .bg-surface-base {
+    background-color: hsl(var(--surface-base));
   }
-  body {
-    @apply bg-background text-foreground;
+
+  .bg-surface-panel {
+    background-color: hsl(var(--surface-panel));
+  }
+
+  .bg-surface-elevated {
+    background-color: hsl(var(--surface-elevated));
+  }
+
+  /* === 边框工具类 === */
+  .border-subtle {
+    border-color: hsl(var(--border-subtle));
+  }
+
+  .border-default {
+    border-color: hsl(var(--border-default));
+  }
+
+  .border-emphasis {
+    border-color: hsl(var(--border-emphasis));
+  }
+
+  /* === 语义颜色 - 涨跌 === */
+  .text-up {
+    color: hsl(var(--semantic-up));
+  }
+
+  .text-down {
+    color: hsl(var(--semantic-down));
+  }
+
+  .text-flat {
+    color: hsl(var(--semantic-flat));
+  }
+
+  .bg-up {
+    background-color: hsl(var(--semantic-up-bg));
+  }
+
+  .bg-down {
+    background-color: hsl(var(--semantic-down-bg));
+  }
+
+  /* === 语义颜色 - 任务状态 === */
+  .text-task-pending {
+    color: hsl(var(--task-pending));
+  }
+
+  .text-task-running {
+    color: hsl(var(--task-running));
+  }
+
+  .text-task-success {
+    color: hsl(var(--task-success));
+  }
+
+  .text-task-failed {
+    color: hsl(var(--task-failed));
+  }
+
+  .bg-task-pending {
+    background-color: hsl(var(--task-pending-bg));
+  }
+
+  .bg-task-running {
+    background-color: hsl(var(--task-running-bg));
+  }
+
+  .bg-task-success {
+    background-color: hsl(var(--task-success-bg));
+  }
+
+  .bg-task-failed {
+    background-color: hsl(var(--task-failed-bg));
+  }
+
+  /* === 语义颜色 - 告警 === */
+  .text-alert-info {
+    color: hsl(var(--alert-info));
+  }
+
+  .text-alert-warning {
+    color: hsl(var(--alert-warning));
+  }
+
+  .text-alert-critical {
+    color: hsl(var(--alert-critical));
+  }
+
+  .bg-alert-info {
+    background-color: hsl(var(--alert-info-bg));
+  }
+
+  .bg-alert-warning {
+    background-color: hsl(var(--alert-warning-bg));
+  }
+
+  .bg-alert-critical {
+    background-color: hsl(var(--alert-critical-bg));
+  }
+
+  /* === 发光效果 === */
+  .glow-up {
+    box-shadow: 0 0 20px hsl(var(--glow-up));
+  }
+
+  .glow-down {
+    box-shadow: 0 0 20px hsl(var(--glow-down));
+  }
+
+  .glow-focus {
+    box-shadow: 0 0 20px hsl(var(--glow-focus));
+  }
+
+  /* === 阴影工具类 === */
+  .shadow-xs {
+    box-shadow: var(--shadow-xs);
+  }
+
+  .shadow-sm {
+    box-shadow: var(--shadow-sm);
+  }
+
+  .shadow-md {
+    box-shadow: var(--shadow-md);
+  }
+
+  .shadow-lg {
+    box-shadow: var(--shadow-lg);
+  }
+
+  .shadow-xl {
+    box-shadow: var(--shadow-xl);
   }
 }

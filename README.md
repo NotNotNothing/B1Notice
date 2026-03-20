@@ -16,21 +16,57 @@
 
 ## 开发环境启动
 
+### 方式一：本地开发
+
 ```bash
 npm install
 ```
 
-### 使用 SQLite
+#### 使用 SQLite
 
 ```bash
 npm run dev
 ```
 
-### 使用 PostgreSQL
+#### 使用 PostgreSQL
 
 ```bash
 npm run dev:pg
 ```
+
+### 方式二：Docker 开发环境（推荐）
+
+使用 Docker 可以避免本地环境配置问题，确保开发环境一致性。
+
+#### 快速启动
+
+```bash
+# 使用交互式脚本（推荐）
+./scripts/docker-start.sh
+
+# 或使用 npm 命令
+npm run docker:dev:build
+```
+
+#### 常用命令
+
+```bash
+# 查看日志
+npm run docker:dev:logs
+
+# 停止环境
+npm run docker:dev:stop
+
+# 进入容器
+npm run docker:dev:shell
+
+# 清理环境
+npm run docker:dev:clean
+```
+
+#### 详细文档
+
+查看 [Docker 开发环境指南](./docs/docker-guide.md) 了解更多信息。
 
 ## 功能特性
 

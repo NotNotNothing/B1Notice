@@ -8,6 +8,8 @@ import { closingScreenerService } from '@/server/screener/service';
 const updateSchema = z.object({
   enabled: z.boolean().optional(),
   notifyEnabled: z.boolean().optional(),
+  mode: z.enum(['BASIC', 'FORMULA']).optional(),
+  formula: z.string().max(4000).optional(),
   maxDailyJ: z.number().min(-100).max(200).nullable().optional(),
   maxWeeklyJ: z.number().min(-100).max(200).nullable().optional(),
   requirePriceAboveBBI: z.boolean().optional(),
@@ -51,6 +53,9 @@ export async function POST(request: Request) {
     return NextResponse.json(nextRule);
   } catch (error) {
     console.error('更新收盘选股配置失败:', error);
-    return NextResponse.json({ error: '更新收盘选股配置失败' }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : '更新收盘选股配置失败' },
+      { status: 500 },
+    );
   }
 }

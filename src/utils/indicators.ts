@@ -146,6 +146,34 @@ function calculateMASeries(values: number[], period: number): (number | null)[] 
   return result;
 }
 
+export function calculateBBISeries(klineData: KLineData[]): (number | null)[] {
+  if (!klineData.length) {
+    return [];
+  }
+
+  const closeValues = klineData.map((item) => item.close);
+  const ma3Series = calculateMASeries(closeValues, 3);
+  const ma6Series = calculateMASeries(closeValues, 6);
+  const ma12Series = calculateMASeries(closeValues, 12);
+  const ma24Series = calculateMASeries(closeValues, 24);
+
+  return closeValues.map((_, index) => {
+    const values = [
+      ma3Series[index],
+      ma6Series[index],
+      ma12Series[index],
+      ma24Series[index],
+    ];
+
+    if (values.some((value) => value === null)) {
+      return null;
+    }
+
+    const total = values.reduce((sum: number, value) => sum + (value ?? 0), 0);
+    return Number((total / values.length).toFixed(2));
+  });
+}
+
 function calculateEMASeries(values: number[], period: number): number[] {
   if (values.length === 0) {
     return [];

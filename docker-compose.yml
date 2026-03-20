@@ -1,0 +1,105 @@
+services:
+  # ========================================
+  # B1Notice 开发环境
+  # ========================================
+  b1notice-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      target: dev
+    container_name: b1notice-dev
+    restart: unless-stopped
+
+    # 端口映射
+    ports:
+      - "3000:3000"
+
+    # 环境变量
+    environment:
+      - NODE_ENV=development
+      - DB_TYPE=sqlite
+      - DATABASE_URL=file:./prisma/sqlite/dev.db
+      - NEXTAUTH_SECRET=B1Notice
+      - NEXTAUTH_URL=http://localhost:3000
+      - PYTHONIOENCODING=utf-8
+      # 从 .env.docker 文件读取其他环境变量
+    env_file:
+      - .env.docker
+
+    # 数据卷（持久化数据和代码热更新）
+    volumes:
+      # 代码热更新（开发模式）
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./prisma:/app/prisma
+      - ./scripts:/app/scripts
+
+      # 持久化 node_modules（避免每次重新安装）
+      - b1notice-node-modules:/app/node_modules
+
+    # 网络
+    networks:
+      - b1notice-network
+
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ========================================
+  # 可选：PostgreSQL 数据库（如果需要使用 PG）
+  # ========================================
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: b1notice-postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: b1notice
+  #     POSTGRES_PASSWORD: b1notice_dev_password
+  #     POSTGRES_DB: b1notice
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   networks:
+  #     - b1notice-network
+
+  # ========================================
+  # 可选：MySQL 数据库（如果需要使用 MySQL）
+  # ========================================
+  # mysql:
+  #   image: mysql:8.0
+  #   container_name: b1notice-mysql
+  #   restart: unless-stopped
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: b1notice_root_password
+  #     MYSQL_DATABASE: b1notice
+  #     MYSQL_USER: b1notice
+  #     MYSQL_PASSWORD: b1notice_dev_password
+  #   ports:
+  #     - "3306:3306"
+  #   volumes:
+  #     - mysql-data:/var/lib/mysql
+  #   networks:
+  #     - b1notice-network
+
+# ========================================
+# 数据卷
+# ========================================
+volumes:
+  b1notice-node-modules:
+    driver: local
+  # postgres-data:
+  #   driver: local
+  # mysql-data:
+  #   driver: local
+
+# ========================================
+# 网络
+# ========================================
+networks:
+  b1notice-network:
+    driver: bridge

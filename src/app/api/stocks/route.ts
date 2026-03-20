@@ -1,89 +1,115 @@
 import { NextResponse } from 'next/server';
-import { getLongBridgeClient, KLINE_PERIOD } from '@/server/longbridge/client';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
-import { KDJ_TYPE } from '@/utils';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/auth.config';
+import { getQuoteProvider, type DataSourceType } from '@/server/datasource';
+import {
+  fetchAndStoreStockData,
+  fetchSaveAndUpdateStock,
+  saveStockDataToDatabase,
+} from '@/server/stock/service';
 
-export async function GET(request: Request) {
+const stockWithLatestQuoteInclude = {
+  quotes: {
+    orderBy: {
+      createdAt: 'desc',
+    },
+    take: 1,
+    include: {
+      dailyKdj: true,
+      weeklyKdj: true,
+      bbi: true,
+      zhixingTrend: true,
+    },
+  },
+} satisfies Prisma.StockInclude;
+
+type UserStockWithLatestQuote = Prisma.StockGetPayload<{
+  include: typeof stockWithLatestQuoteInclude;
+}>;
+
+async function getAuthenticatedSession() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return null;
+  }
+
+  return session;
+}
+
+async function getUserStocks(userId: string) {
+  return prisma.stock.findMany({
+    where: {
+      userId,
+    },
+    include: stockWithLatestQuoteInclude,
+  });
+}
+
+function serializeStocks(stocks: UserStockWithLatestQuote[]) {
+  return stocks.map((stock) => {
+    const latestQuote = stock.quotes[0];
+    return {
+      id: stock.id,
+      symbol: stock.symbol,
+      name: stock.name,
+      market: stock.market,
+      price: latestQuote?.price,
+      volume: latestQuote?.volume,
+      changePercent: latestQuote?.changePercent,
+      kdj: latestQuote?.dailyKdj
+        ? {
+            k: latestQuote.dailyKdj.k,
+            d: latestQuote.dailyKdj.d,
+            j: latestQuote.dailyKdj.j,
+          }
+        : undefined,
+      weeklyKdj: latestQuote?.weeklyKdj
+        ? {
+            k: latestQuote.weeklyKdj.k,
+            d: latestQuote.weeklyKdj.d,
+            j: latestQuote.weeklyKdj.j,
+          }
+        : undefined,
+      bbi: latestQuote?.bbi
+        ? {
+            bbi: latestQuote.bbi.bbi,
+            ma3: latestQuote.bbi.ma3,
+            ma6: latestQuote.bbi.ma6,
+            ma12: latestQuote.bbi.ma12,
+            ma24: latestQuote.bbi.ma24,
+            aboveBBIConsecutiveDays: latestQuote.bbi.aboveBBIConsecutiveDays,
+            belowBBIConsecutiveDays: latestQuote.bbi.belowBBIConsecutiveDays,
+            aboveBBIConsecutiveDaysCount: latestQuote.bbi.aboveBBIConsecutiveDaysCount,
+            belowBBIConsecutiveDaysCount: latestQuote.bbi.belowBBIConsecutiveDaysCount,
+          }
+        : undefined,
+      zhixingTrend: latestQuote?.zhixingTrend
+        ? {
+            whiteLine: latestQuote.zhixingTrend.whiteLine,
+            yellowLine: latestQuote.zhixingTrend.yellowLine,
+            previousWhiteLine: latestQuote.zhixingTrend.previousWhiteLine,
+            previousYellowLine: latestQuote.zhixingTrend.previousYellowLine,
+            isGoldenCross: latestQuote.zhixingTrend.isGoldenCross,
+            isDeathCross: latestQuote.zhixingTrend.isDeathCross,
+            updatedAt: latestQuote.zhixingTrend.updatedAt.toISOString(),
+          }
+        : undefined,
+      updatedAt: latestQuote?.updatedAt,
+    };
+  });
+}
+
+export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getAuthenticatedSession();
     if (!session?.user) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
-    const stocks = await prisma.stock.findMany({
-      where: {
-        userId: session.user.id,
-      },
-      include: {
-        quotes: {
-          orderBy: {
-            createdAt: 'desc',
-          },
-          take: 1,
-          include: {
-            dailyKdj: true,
-            weeklyKdj: true,
-            bbi: true,
-            zhixingTrend: true,
-          },
-        },
-      } as Prisma.StockInclude,
-    });
-
-    const stocksData = stocks.map((stock: any) => {
-      const latestQuote = stock.quotes[0];
-      return {
-        id: stock.id,
-        symbol: stock.symbol,
-        name: stock.name,
-        market: stock.market,
-        price: latestQuote?.price,
-        volume: latestQuote?.volume,
-        changePercent: latestQuote?.changePercent,
-        kdj: latestQuote?.dailyKdj
-          ? {
-              k: latestQuote.dailyKdj.k,
-              d: latestQuote.dailyKdj.d,
-              j: latestQuote.dailyKdj.j,
-            }
-          : undefined,
-        weeklyKdj: latestQuote?.weeklyKdj
-          ? {
-              k: latestQuote.weeklyKdj.k,
-              d: latestQuote.weeklyKdj.d,
-              j: latestQuote.weeklyKdj.j,
-            }
-          : undefined,
-        bbi: latestQuote?.bbi
-          ? {
-              bbi: latestQuote.bbi.bbi,
-              ma3: latestQuote.bbi.ma3,
-              ma6: latestQuote.bbi.ma6,
-              ma12: latestQuote.bbi.ma12,
-              ma24: latestQuote.bbi.ma24,
-              aboveBBIConsecutiveDays: latestQuote.bbi.aboveBBIConsecutiveDays,
-              belowBBIConsecutiveDays: latestQuote.bbi.belowBBIConsecutiveDays,
-              aboveBBIConsecutiveDaysCount: latestQuote.bbi.aboveBBIConsecutiveDaysCount,
-              belowBBIConsecutiveDaysCount: latestQuote.bbi.belowBBIConsecutiveDaysCount,
-            }
-          : undefined,
-        zhixingTrend: latestQuote?.zhixingTrend
-          ? {
-              whiteLine: latestQuote.zhixingTrend.whiteLine,
-              yellowLine: latestQuote.zhixingTrend.yellowLine,
-              previousWhiteLine: latestQuote.zhixingTrend.previousWhiteLine,
-              previousYellowLine: latestQuote.zhixingTrend.previousYellowLine,
-              isGoldenCross: latestQuote.zhixingTrend.isGoldenCross,
-              isDeathCross: latestQuote.zhixingTrend.isDeathCross,
-              updatedAt: latestQuote.zhixingTrend.updatedAt.toISOString(),
-            }
-          : undefined,
-        updatedAt: latestQuote?.updatedAt,
-      };
-    });
+    const stocks = await getUserStocks(session.user.id);
+    const stocksData = serializeStocks(stocks);
 
     return NextResponse.json(stocksData);
   } catch (error) {
@@ -92,230 +118,140 @@ export async function GET(request: Request) {
   }
 }
 
+export async function PUT() {
+  try {
+    const session = await getAuthenticatedSession();
+    if (!session?.user) {
+      return NextResponse.json({ error: '未登录' }, { status: 401 });
+    }
+
+    const [user, stocks] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { dataSource: true },
+      }),
+      prisma.stock.findMany({
+        where: { userId: session.user.id },
+        select: { id: true, symbol: true, market: true },
+      }),
+    ]);
+
+    if (stocks.length === 0) {
+      return NextResponse.json({
+        data: [],
+        refreshedCount: 0,
+        failedCount: 0,
+      });
+    }
+
+    const provider = await getQuoteProvider(
+      (user?.dataSource as DataSourceType | null) ?? 'longbridge',
+    );
+
+    let refreshedCount = 0;
+    let failedCount = 0;
+
+    for (const stock of stocks) {
+      try {
+        await fetchSaveAndUpdateStock(
+          stock.id,
+          stock.symbol,
+          stock.market,
+          provider,
+        );
+        refreshedCount += 1;
+      } catch (error) {
+        failedCount += 1;
+        console.error(`刷新股票 ${stock.symbol} 失败:`, error);
+      }
+    }
+
+    const latestStocks = await getUserStocks(session.user.id);
+
+    return NextResponse.json({
+      data: serializeStocks(latestStocks),
+      refreshedCount,
+      failedCount,
+    });
+  } catch (error) {
+    console.error('刷新股票数据失败:', error);
+    return NextResponse.json({ error: '刷新股票数据失败' }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getAuthenticatedSession();
     if (!session?.user) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
     const { symbol, market } = await request.json();
-    const client = getLongBridgeClient();
-    const staticInfo = await client.getStockInfo(symbol.toUpperCase());
+    const normalizedSymbol = String(symbol).toUpperCase();
 
-    if (staticInfo?.nameCn) {
-      // 检查是否已存在相同的股票
-      const existingStock = await prisma.stock.findFirst({
+    const [user, existingStock] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { dataSource: true },
+      }),
+      prisma.stock.findFirst({
         where: {
           userId: session.user.id,
-          symbol: symbol.toUpperCase(),
+          symbol: normalizedSymbol,
         },
-      });
+      }),
+    ]);
 
-      if (existingStock) {
-        return NextResponse.json(
-          { error: '该股票已在您的监控列表中' },
-          { status: 400 }
-        );
-      }
-
-      // 创建股票基本信息
-      const stock = await prisma.stock.create({
-        data: {
-          symbol: symbol.toUpperCase(),
-          name: staticInfo.nameCn,
-          market,
-          userId: session.user.id,
-        },
-      });
-
-      // 获取股票报价
-      const quote = await client.getQuote(symbol.toUpperCase());
-      if (!quote) {
-        throw new Error('获取股票报价失败');
-      }
-
-      // 获取日线KDJ
-      const dailyKdj = await client.calculateKDJ(
-        symbol.toUpperCase(),
-        KLINE_PERIOD.DAY,
+    if (existingStock) {
+      return NextResponse.json(
+        { error: '该股票已在您的监控列表中' },
+        { status: 400 },
       );
-
-      // 获取周线KDJ
-      const weeklyKdj = await client.calculateKDJ(
-        symbol.toUpperCase(),
-        KLINE_PERIOD.WEEK,
-      );
-
-      // 获取BBI指标
-      const bbiData = await client.calculateBBI(symbol.toUpperCase());
-
-      // 获取知行多空趋势线
-      const zhixingTrendData = await client.calculateZhixingTrend(
-        symbol.toUpperCase(),
-      );
-
-      if (!dailyKdj.length || !weeklyKdj.length) {
-        throw new Error('获取KDJ数据失败');
-      }
-
-      // 存储日线KDJ
-      const latestDailyKdj = await prisma.kdj.create({
-        data: {
-          stock: {
-            connect: {
-              id: stock.id,
-            },
-          },
-          k: dailyKdj[dailyKdj.length - 1].k,
-          d: dailyKdj[dailyKdj.length - 1].d,
-          j: dailyKdj[dailyKdj.length - 1].j,
-          type: KDJ_TYPE.DAILY,
-          date: new Date(),
-        } as Prisma.KdjCreateInput,
-      });
-
-      // 存储周线KDJ
-      const latestWeeklyKdj = await prisma.kdj.create({
-        data: {
-          stock: {
-            connect: {
-              id: stock.id,
-            },
-          },
-          k: weeklyKdj[weeklyKdj.length - 1].k,
-          d: weeklyKdj[weeklyKdj.length - 1].d,
-          j: weeklyKdj[weeklyKdj.length - 1].j,
-          type: KDJ_TYPE.WEEKLY,
-          date: new Date(),
-        } as Prisma.KdjCreateInput,
-      });
-
-      // 存储BBI指标（如果有数据）
-      let latestBbi = null;
-      if (bbiData) {
-        latestBbi = await prisma.bbi.create({
-          data: {
-            stock: {
-              connect: {
-                id: stock.id,
-              },
-            },
-            bbi: bbiData.bbi,
-            ma3: bbiData.ma3,
-            ma6: bbiData.ma6,
-            ma12: bbiData.ma12,
-            ma24: bbiData.ma24,
-            aboveBBIConsecutiveDays: bbiData.aboveBBIConsecutiveDays,
-            belowBBIConsecutiveDays: bbiData.belowBBIConsecutiveDays,
-            aboveBBIConsecutiveDaysCount: bbiData.aboveBBIConsecutiveDaysCount,
-            belowBBIConsecutiveDaysCount: bbiData.belowBBIConsecutiveDaysCount,
-            date: new Date(),
-          } as Prisma.BbiCreateInput,
-        });
-      }
-
-      // 存储知行多空趋势线
-      let latestZhixingTrend = null;
-      if (zhixingTrendData) {
-        latestZhixingTrend = await prisma.zhixingTrend.create({
-          data: {
-            stock: {
-              connect: {
-                id: stock.id,
-              },
-            },
-            whiteLine: zhixingTrendData.whiteLine,
-            yellowLine: zhixingTrendData.yellowLine,
-            previousWhiteLine: zhixingTrendData.previousWhiteLine,
-            previousYellowLine: zhixingTrendData.previousYellowLine,
-            isGoldenCross: zhixingTrendData.isGoldenCross,
-            isDeathCross: zhixingTrendData.isDeathCross,
-            date: new Date(zhixingTrendData.timestamp),
-          } as Prisma.ZhixingTrendCreateInput,
-        });
-      }
-
-      // 存储股票报价
-      const stockQuote = await prisma.quote.create({
-        data: {
-          stock: {
-            connect: {
-              id: stock.id,
-            },
-          },
-          price: quote.price,
-          volume: quote.volume,
-          changePercent: quote.changeRate,
-          dailyKdj: {
-            connect: {
-              id: latestDailyKdj.id,
-            },
-          },
-          weeklyKdj: {
-            connect: {
-              id: latestWeeklyKdj.id,
-            },
-          },
-          ...(latestBbi ? {
-            bbi: {
-              connect: {
-                id: latestBbi.id,
-              },
-            },
-          } : {}),
-          ...(latestZhixingTrend ? {
-            zhixingTrend: {
-              connect: {
-                id: latestZhixingTrend.id,
-              },
-            },
-          } : {}),
-        } as Prisma.QuoteCreateInput,
-      });
-
-      // 返回完整的股票数据
-      return NextResponse.json({
-        ...stock,
-        price: stockQuote.price,
-        volume: stockQuote.volume,
-        changePercent: stockQuote.changePercent,
-        kdj: {
-          k: latestDailyKdj.k,
-          d: latestDailyKdj.d,
-          j: latestDailyKdj.j,
-        },
-        weeklyKdj: {
-          k: latestWeeklyKdj.k,
-          d: latestWeeklyKdj.d,
-          j: latestWeeklyKdj.j,
-        },
-        ...(bbiData ? {
-          bbi: {
-            bbi: bbiData.bbi,
-            ma3: bbiData.ma3,
-            ma6: bbiData.ma6,
-            ma12: bbiData.ma12,
-            ma24: bbiData.ma24,
-            aboveBBIConsecutiveDays: bbiData.aboveBBIConsecutiveDays,
-            belowBBIConsecutiveDays: bbiData.belowBBIConsecutiveDays,
-          },
-        } : {}),
-        ...(zhixingTrendData ? {
-          zhixingTrend: {
-            whiteLine: zhixingTrendData.whiteLine,
-            yellowLine: zhixingTrendData.yellowLine,
-            previousWhiteLine: zhixingTrendData.previousWhiteLine,
-            previousYellowLine: zhixingTrendData.previousYellowLine,
-            isGoldenCross: zhixingTrendData.isGoldenCross,
-            isDeathCross: zhixingTrendData.isDeathCross,
-            updatedAt: latestZhixingTrend?.updatedAt.toISOString(),
-          },
-        } : {}),
-      });
     }
 
-    return NextResponse.json({ error: '找不到股票信息' }, { status: 500 });
+    const provider = await getQuoteProvider(
+      (user?.dataSource as DataSourceType | null) ?? 'longbridge',
+    );
+    const staticInfo = await provider.getStockInfo(normalizedSymbol);
+
+    if (!staticInfo?.nameCn) {
+      return NextResponse.json({ error: '找不到股票信息' }, { status: 404 });
+    }
+
+    const resolvedMarket =
+      market || staticInfo.market || normalizedSymbol.split('.').at(-1) || 'UNKNOWN';
+
+    const stockData = await fetchAndStoreStockData(
+      normalizedSymbol,
+      resolvedMarket,
+      provider,
+    );
+
+    if (!stockData) {
+      return NextResponse.json({ error: '获取股票数据失败' }, { status: 500 });
+    }
+
+    const stock = await prisma.stock.create({
+      data: {
+        symbol: normalizedSymbol,
+        name: staticInfo.nameCn,
+        market: resolvedMarket,
+        userId: session.user.id,
+      },
+    });
+
+    await saveStockDataToDatabase(stock.id, stockData);
+
+    const createdStock = await prisma.stock.findUnique({
+      where: { id: stock.id },
+      include: stockWithLatestQuoteInclude,
+    });
+
+    if (!createdStock) {
+      return NextResponse.json({ error: '创建股票失败' }, { status: 500 });
+    }
+
+    return NextResponse.json(serializeStocks([createdStock])[0]);
   } catch (error) {
     console.error('创建股票失败:', error);
     return NextResponse.json(
@@ -330,7 +266,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getAuthenticatedSession();
     if (!session?.user) {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
