@@ -19,10 +19,19 @@ print_success() { echo -e "${GREEN}✅ $1${NC}"; }
 print_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
 print_error() { echo -e "${RED}❌ $1${NC}"; }
 
+compose() {
+    docker compose "$@"
+}
+
 # 检查 Docker 是否运行
 check_docker() {
     if ! docker info > /dev/null 2>&1; then
         print_error "Docker 未运行，请先启动 Docker"
+        exit 1
+    fi
+
+    if ! docker compose version > /dev/null 2>&1; then
+        print_error "Docker Compose V2 不可用，请先确认 'docker compose version' 可执行"
         exit 1
     fi
 }
@@ -44,29 +53,29 @@ start_dev() {
 
     # 停止旧容器
     print_info "清理旧容器..."
-    docker-compose -f docker-compose.dev.yml down 2>/dev/null || true
+    compose down 2>/dev/null || true
 
     # 构建镜像（如果需要）
     print_info "检查并构建 Docker 镜像..."
-    docker-compose -f docker-compose.dev.yml build
+    compose build
 
     # 启动容器
     print_info "启动开发容器..."
-    docker-compose -f docker-compose.dev.yml up -d
+    compose up -d
 
     # 等待服务启动
     print_info "等待服务启动..."
     sleep 5
 
     # 检查容器状态
-    if docker-compose -f docker-compose.dev.yml ps | grep -q "Up"; then
+    if compose ps | grep -q "Up"; then
         print_success "开发环境已成功启动"
         print_info "访问地址: http://localhost:3000"
         print_info "查看日志: ./dev-docker.sh logs"
         print_info "停止服务: ./dev-docker.sh stop"
     else
         print_error "容器启动失败，请查看日志"
-        docker-compose -f docker-compose.dev.yml logs
+        compose logs
         exit 1
     fi
 }
@@ -74,7 +83,7 @@ start_dev() {
 # 停止开发环境
 stop_dev() {
     print_info "停止 B1Notice 开发环境..."
-    docker-compose -f docker-compose.dev.yml down
+    compose down
     print_success "开发环境已停止"
 }
 
@@ -88,13 +97,13 @@ restart_dev() {
 # 查看日志
 view_logs() {
     print_info "显示日志（按 Ctrl+C 退出）..."
-    docker-compose -f docker-compose.dev.yml logs -f
+    compose logs -f
 }
 
 # 重新构建
 build_dev() {
     print_info "重新构建 Docker 镜像..."
-    docker-compose -f docker-compose.dev.yml build --no-cache
+    compose build --no-cache
     print_success "构建完成"
 }
 
@@ -105,7 +114,7 @@ clean_all() {
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         print_info "清理所有 Docker 资源..."
-        docker-compose -f docker-compose.dev.yml down -v --rmi local
+        compose down -v --rmi local
         print_success "清理完成"
     else
         print_info "已取消清理"

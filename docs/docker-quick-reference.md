@@ -3,12 +3,17 @@
 ## 🚀 一键启动
 
 ```bash
-# 方式 1: 使用启动脚本（推荐）
+# 方式 1: 使用 npm 命令（推荐）
+npm run docker:dev:build
+
+# 方式 2: 使用启动脚本
 ./scripts/docker-start.sh
 
-# 方式 2: 使用 npm 命令
-npm run docker:dev:build
+# 方式 3: 直接使用 Compose V2
+docker compose up -d --build
 ```
+
+> 注意：仓库已统一使用 `docker compose`。看到 `docker-compose` 说明时，应视为过期写法。
 
 ## 📋 常用命令
 
@@ -39,7 +44,7 @@ npm run docker:dev:build
 
 ```bash
 # 查看详细日志
-docker-compose logs b1notice-dev
+docker compose logs b1notice-dev
 
 # 重新构建
 npm run docker:dev:build
@@ -67,13 +72,13 @@ npx prisma migrate deploy --schema ./prisma/sqlite/schema.prisma
 
 ```bash
 # 查看容器状态
-docker-compose ps
+docker compose ps
 
 # 查看资源使用
 docker stats b1notice-dev
 
 # 查看容器日志（最近 100 行）
-docker-compose logs --tail=100 b1notice-dev
+docker compose logs --tail=100 b1notice-dev
 ```
 
 ## 🔄 重置环境
@@ -107,10 +112,10 @@ npx prisma --version
 
 ```bash
 # 列出文件
-docker-compose exec b1notice-dev ls -la
+docker compose exec b1notice-dev ls -la
 
 # 查看环境变量
-docker-compose exec b1notice-dev env
+docker compose exec b1notice-dev env
 ```
 
 ### 复制文件到容器
@@ -157,7 +162,7 @@ docker system prune -a --volumes
 
 ## 📝 开发工作流
 
-1. **启动环境**: `./scripts/docker-start.sh`
+1. **启动环境**: `npm run dev`
 2. **修改代码**: 编辑 `src/` 目录下的文件
 3. **查看日志**: `npm run docker:dev:logs`
 4. **测试功能**: 访问 http://localhost:3000

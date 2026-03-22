@@ -10,7 +10,7 @@
 
 ```bash
 # 在容器中同步数据库
-docker-compose -f docker-compose.dev.yml exec b1notice-dev \
+docker compose exec b1notice-dev \
   npx prisma db push --schema ./prisma/sqlite/schema.prisma --accept-data-loss
 ```
 
@@ -18,7 +18,7 @@ docker-compose -f docker-compose.dev.yml exec b1notice-dev \
 
 ```bash
 # 运行创建默认用户脚本
-docker-compose -f docker-compose.dev.yml exec b1notice-dev \
+docker compose exec b1notice-dev \
   node scripts/create-default-user.js
 ```
 
@@ -26,7 +26,7 @@ docker-compose -f docker-compose.dev.yml exec b1notice-dev \
 
 ```bash
 # 重启开发容器
-docker-compose -f docker-compose.dev.yml restart b1notice-dev
+docker compose restart b1notice-dev
 
 # 等待 10 秒让服务完全启动
 sleep 10
@@ -46,7 +46,7 @@ sleep 10
 ### 步骤 1: 检查容器状态
 
 ```bash
-docker-compose -f docker-compose.dev.yml ps
+docker compose ps
 ```
 
 确认容器状态为 `Up` 且健康检查为 `(healthy)`。
@@ -55,10 +55,10 @@ docker-compose -f docker-compose.dev.yml ps
 
 ```bash
 # 查看最近 50 行日志
-docker-compose -f docker-compose.dev.yml logs --tail=50 b1notice-dev
+docker compose logs --tail=50 b1notice-dev
 
 # 实时查看日志
-docker-compose -f docker-compose.dev.yml logs -f b1notice-dev
+docker compose logs -f b1notice-dev
 ```
 
 查找错误信息，特别是：
@@ -70,7 +70,7 @@ docker-compose -f docker-compose.dev.yml logs -f b1notice-dev
 
 ```bash
 # 进入容器
-docker-compose -f docker-compose.dev.yml exec b1notice-dev sh
+docker compose exec b1notice-dev sh
 
 # 检查用户表
 sqlite3 ./prisma/sqlite/dev.db "SELECT username, name, role FROM User;"
@@ -85,7 +85,7 @@ exit
 
 ```bash
 # 在容器中测试密码验证
-docker-compose -f docker-compose.dev.yml exec b1notice-dev node -e "
+docker compose exec b1notice-dev node -e "
 const bcrypt = require('bcryptjs');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
@@ -110,7 +110,7 @@ test();
 
 ```bash
 # 查看容器中的环境变量
-docker-compose -f docker-compose.dev.yml exec b1notice-dev env | grep -E '(DATABASE_URL|NEXTAUTH)'
+docker compose exec b1notice-dev env | grep -E '(DATABASE_URL|NEXTAUTH)'
 ```
 
 确认：
@@ -126,7 +126,7 @@ docker-compose -f docker-compose.dev.yml exec b1notice-dev env | grep -E '(DATAB
 
 **解决方案**:
 ```bash
-docker-compose -f docker-compose.dev.yml exec b1notice-dev \
+docker compose exec b1notice-dev \
   npx prisma db push --schema ./prisma/sqlite/schema.prisma --accept-data-loss
 ```
 
@@ -137,11 +137,11 @@ docker-compose -f docker-compose.dev.yml exec b1notice-dev \
 **解决方案**:
 ```bash
 # 重新生成 Prisma Client
-docker-compose -f docker-compose.dev.yml exec b1notice-dev \
+docker compose exec b1notice-dev \
   npx prisma generate --schema ./prisma/sqlite/schema.prisma
 
 # 重启容器
-docker-compose -f docker-compose.dev.yml restart b1notice-dev
+docker compose restart b1notice-dev
 ```
 
 ### 错误 3: 登录后立即退出
@@ -158,7 +158,7 @@ docker-compose -f docker-compose.dev.yml restart b1notice-dev
 **排查步骤**:
 ```bash
 # 1. 查看详细日志
-docker-compose -f docker-compose.dev.yml logs b1notice-dev
+docker compose logs b1notice-dev
 
 # 2. 重新构建镜像
 ./dev-docker.sh build
@@ -176,7 +176,7 @@ docker-compose -f docker-compose.dev.yml logs b1notice-dev
 # ⚠️ 警告：这将删除所有数据！
 
 # 1. 停止并删除容器和卷
-docker-compose -f docker-compose.dev.yml down -v
+docker compose down -v
 
 # 2. 重新启动
 ./dev-docker.sh start
@@ -185,34 +185,34 @@ docker-compose -f docker-compose.dev.yml down -v
 sleep 20
 
 # 4. 同步数据库
-docker-compose -f docker-compose.dev.yml exec b1notice-dev \
+docker compose exec b1notice-dev \
   npx prisma db push --schema ./prisma/sqlite/schema.prisma --accept-data-loss
 
 # 5. 创建默认用户
-docker-compose -f docker-compose.dev.yml exec b1notice-dev \
+docker compose exec b1notice-dev \
   node scripts/create-default-user.js
 
 # 6. 重启容器
-docker-compose -f docker-compose.dev.yml restart b1notice-dev
+docker compose restart b1notice-dev
 ```
 
 ## 预防措施
 
 1. **定期备份数据库**
    ```bash
-   docker-compose -f docker-compose.dev.yml exec b1notice-dev \
+   docker compose exec b1notice-dev \
      sqlite3 ./prisma/sqlite/dev.db ".backup ./prisma/sqlite/backup.db"
    ```
 
 2. **更新代码后重新生成 Prisma Client**
    ```bash
-   docker-compose -f docker-compose.dev.yml exec b1notice-dev \
+   docker compose exec b1notice-dev \
      npx prisma generate --schema ./prisma/sqlite/schema.prisma
    ```
 
 3. **监控容器健康状态**
    ```bash
-   watch -n 5 'docker-compose -f docker-compose.dev.yml ps'
+   watch -n 5 'docker compose ps'
    ```
 
 ## 获取帮助

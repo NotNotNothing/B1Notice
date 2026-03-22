@@ -16,36 +16,47 @@
 
 ## 开发环境启动
 
-### 方式一：本地开发
+### Docker 开发环境（默认）
 
-```bash
-npm install
-```
+开发环境统一使用 Docker，避免本地 `next dev` 与容器并行启动导致端口、环境变量和 SQLite 路径不一致。
 
-#### 使用 SQLite
+#### 快速启动
 
 ```bash
 npm run dev
 ```
 
-#### 使用 PostgreSQL
+等价命令：
 
 ```bash
-npm run dev:pg
+npm run docker:dev:build
 ```
 
-### 方式二：Docker 开发环境（推荐）
-
-使用 Docker 可以避免本地环境配置问题，确保开发环境一致性。
-
-#### 快速启动
+默认基础镜像使用镜像源：
 
 ```bash
-# 使用交互式脚本（推荐）
-./scripts/docker-start.sh
+docker.m.daocloud.io/library/node:20-slim
+```
 
-# 或使用 npm 命令
-npm run docker:dev:build
+默认 `pnpm` 拉包也使用镜像源并固定版本 `pnpm@10.32.1`，避免首次构建时出现 `ECONNRESET`、`EOF`、TLS handshake timeout。
+Python 依赖默认也走 `https://pypi.tuna.tsinghua.edu.cn/simple`，避免 `akshare` 安装时出现 PyPI EOF/TLS 中断。
+
+如果你确认本机可以稳定访问 Docker Hub，也可以临时覆盖：
+
+```bash
+NODE_IMAGE=node:20-slim npm run dev
+```
+
+如果你确认本机可以稳定访问官方 npm registry，也可以临时覆盖：
+
+```bash
+NPM_REGISTRY=https://registry.npmjs.org npm run dev
+```
+
+如需切回官方 PyPI：
+
+```bash
+PIP_INDEX_URL=https://pypi.org/simple npm run dev
 ```
 
 #### 常用命令
@@ -57,6 +68,9 @@ npm run docker:dev:logs
 # 停止环境
 npm run docker:dev:stop
 
+# 重启环境
+npm run docker:dev:restart
+
 # 进入容器
 npm run docker:dev:shell
 
@@ -67,6 +81,34 @@ npm run docker:dev:clean
 #### 详细文档
 
 查看 [Docker 开发环境指南](./docs/docker-guide.md) 了解更多信息。
+
+### 本地开发（仅调试/排障时使用）
+
+除非明确需要调试宿主机环境，否则不要直接启动本地 `next dev`。
+
+```bash
+npm install
+```
+
+#### 使用 SQLite
+
+```bash
+npm run dev:local
+```
+
+如需仅验证 SQLite 构建，可执行：
+
+```bash
+npm run build:sqlite
+```
+
+说明：`build:sqlite` 只会生成 Prisma Client 并执行 Next.js 构建，不会对本地 SQLite 数据库执行迁移。若修改了 Schema，请先显式运行 `npm run db:push:sqlite` 再进行构建验证。
+
+#### 使用 PostgreSQL
+
+```bash
+npm run dev:local:pg
+```
 
 ## 功能特性
 

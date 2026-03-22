@@ -2,13 +2,13 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { signIn } from 'next-auth/react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Icons } from '@/components/ui/icons'
-import { signIn } from 'next-auth/react'
 
 export default function LoginForm() {
   const router = useRouter()
@@ -19,7 +19,7 @@ export default function LoginForm() {
     setIsLoading(true)
 
     const formData = new FormData(event.currentTarget)
-    const username = formData.get('username') as string
+    const username = (formData.get('username') as string).trim()
     const password = formData.get('password') as string
 
     try {
@@ -27,14 +27,19 @@ export default function LoginForm() {
         username,
         password,
         redirect: false,
+        callbackUrl: '/',
       })
 
-      if (result?.error) {
+      if (!result) {
+        throw new Error('登录失败，请重试')
+      }
+
+      if (result.error) {
         throw new Error(result.error)
       }
 
       toast.success('登录成功')
-      router.push('/')
+      router.replace(result.url || '/')
       router.refresh()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '登录失败，请重试')

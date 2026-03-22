@@ -31,19 +31,16 @@ npm run db:sync help
 # 2. 验证一致性
 npm run db:validate
 
-# 3. 为开发环境生成迁移
-npm run db:migrate:create development add_new_field
+# 3. SQLite 开发环境显式同步 Schema
+npm run db:push development
 
-# 4. 应用到开发环境
-npm run db:migrate:deploy development
-
-# 5. 测试本地功能
+# 4. 测试本地功能
 npm run dev
 
-# 6. 为生产环境生成迁移（如果需要）
+# 5. 为生产环境生成迁移（如果需要）
 npm run db:migrate:create production add_new_field
 
-# 7. 部署到生产环境
+# 6. 部署到生产环境
 git push origin main
 ```
 
@@ -115,6 +112,15 @@ npm run db:reset development
 
 ### 2. 自动化同步
 
+构建与数据库同步的职责边界：
+
+- `npm run build:sqlite`：仅生成 Prisma Client 并执行 Next.js 构建，不会对本地 SQLite 数据库执行迁移。
+- `npm run build`：面向 PostgreSQL 生产链路，包含 `prisma migrate deploy`。
+- `npm run db:push development`：用于 SQLite 开发环境显式同步 Schema。
+- `npm run db:migrate:deploy production`：用于 PostgreSQL 生产环境应用迁移。
+
+SQLite 开发数据库文件统一使用 `prisma/sqlite/dev.db`，避免命令误连到根目录 `dev.db`。
+
 构建流程中的数据库同步阶段：
 
 ```toml
@@ -184,7 +190,7 @@ DATABASE_URL="你的生产数据库URL" npx prisma migrate deploy --schema ./pri
 #### 开发环境数据丢失
 ```bash
 # 如果有备份文件
-cp dev.db.backup dev.db
+cp prisma/sqlite/dev.db.backup prisma/sqlite/dev.db
 
 # 或者重新初始化
 npm run db:reset development

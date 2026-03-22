@@ -2,6 +2,97 @@
 
 本文件给后续参与 `B1Notice` 开发的 Agent / 助手使用，目标是：**快速理解项目、稳定加功能、少踩坑。**
 
+## 0. 开发启动约定
+
+从现在开始，**默认开发环境统一使用 Docker**，不要优先启动宿主机上的 `next dev`。
+
+原因：
+
+- 宿主机本地进程和 Docker 容器同时运行时，容易出现：
+  - 3000 端口被错误进程占用
+  - `NEXTAUTH_URL` / `DATABASE_URL` 实际生效值不一致
+  - SQLite 文件路径解析不同，导致“页面连的是 A 库，脚本查的是 B 库”
+  - 浏览器命中的并不是你刚改完的那个服务
+
+推荐命令：
+
+```bash
+# 默认开发入口
+npm run dev
+
+# 等价于
+npm run docker:dev:build
+
+# 如果必须直接调用 Compose，请统一使用 Compose V2 语法
+docker compose up -d --build
+```
+
+硬性约定：
+
+- **默认入口永远是 `npm run dev` 或 `npm run docker:dev:*`，不要优先手敲 `docker compose`。**
+- 如需直接调用 Docker Compose，**只允许使用 `docker compose`（Compose V2）**，不要再使用 `docker-compose`。
+- 当前唯一的 Docker 开发编排文件是根目录 `docker-compose.yml`，不要再创建或引用 `docker-compose.dev.yml` 之类的平行开发配置。
+- 排障顺序统一为：先确认 Docker Desktop / Docker Engine 已启动，再执行 `docker compose version`，最后看 `npm run docker:dev:logs`。
+- 如果脚本报 `docker-compose: not found`，不要继续排应用代码，先把命令改回 `docker compose`。
+- 不要让宿主机 `next dev` 和 Docker 容器同时争抢 3000 端口。
+
+常用 Docker 开发命令：
+
+```bash
+# 启动/重建
+npm run docker:dev:build
+
+# 查看日志
+npm run docker:dev:logs
+
+# 停止
+npm run docker:dev:stop
+
+# 重启
+npm run docker:dev:restart
+
+# 进入容器
+npm run docker:dev:shell
+```
+
+默认 `NODE_IMAGE` 使用镜像源，避免 Docker Hub 匿名 token 或 TLS/EOF 问题：
+
+```bash
+docker.m.daocloud.io/library/node:20-slim
+```
+
+默认 `pnpm` 使用固定版本 `pnpm@10.32.1`，并通过镜像源拉包，减少 Docker 构建阶段出现 `ECONNRESET`、`EOF`、TLS handshake timeout。
+默认 Python 依赖通过 `https://pypi.tuna.tsinghua.edu.cn/simple` 安装，降低 `akshare` 安装时的 PyPI EOF/TLS 问题。
+
+如需覆盖：
+
+```bash
+NODE_IMAGE=node:20-slim npm run dev
+```
+
+如需切回官方 npm registry：
+
+```bash
+NPM_REGISTRY=https://registry.npmjs.org npm run dev
+```
+
+如需切回官方 PyPI：
+
+```bash
+PIP_INDEX_URL=https://pypi.org/simple npm run dev
+```
+
+仅在明确需要排查宿主机环境问题时，才使用本地开发：
+
+```bash
+npm run dev:local
+npm run dev:local:pg
+npm run dev:local:mysql
+```
+
+如果你发现登录、环境变量、数据库路径、端口映射表现异常，**先检查是不是本地进程和 Docker 混跑了**。
+如果你发现 Compose 命令不可用，**优先检查是否误用了 `docker-compose` 而不是 `docker compose`**。
+
 ## 1. 项目概览
 
 `B1Notice` 是一个基于 **Next.js App Router** 的股票监控与提醒系统，核心能力包括：
@@ -438,3 +529,293 @@
 - 数据层？
 
 分清楚，再动手。
+
+---
+
+## 11. CLAUDE.md 补充内容
+
+以下内容补充自 `CLAUDE.md`，并已按当前项目约定合并到本文件中。后续 Agent 不需要再单独依赖 `CLAUDE.md` 才能理解项目。
+
+### 11.1 项目补充概述
+
+- `B1Notice` 是一个基于 B1 策略的股票监控系统
+- 支持 A 股、港股、美股
+- 支持实时监控股票价格、成交量、涨跌幅、KDJ 指标，并通过 PushDeer 发送通知
+
+### 11.2 常用开发命令
+
+#### Docker 开发
+
+```bash
+npm run dev
+npm run docker:dev:build
+npm run docker:dev:logs
+npm run docker:dev:stop
+npm run docker:dev:shell
+```
+
+#### 本地开发（仅调试）
+
+```bash
+npm run dev:local
+npm run dev:local:pg
+npm run dev:local:mysql
+```
+
+#### 数据库操作
+
+项目通过 `DB_TYPE` 环境变量切换数据库类型（sqlite/pgsql/mysql）：
+
+```bash
+# 生成 Prisma Client
+npm run db:generate
+
+# 部署迁移
+npm run db:deploy
+
+# 推送 schema 变更（开发环境）
+npm run db:push:sqlite
+npm run db:push:pg
+npm run db:push:mysql
+
+# 数据库同步管理系统（推荐）
+npm run db:sync
+npm run db:validate
+npm run db:migrate:create
+```
+
+注意：
+
+- 本地使用 SQLite 时，要特别注意 schema 路径和数据库路径是否一致
+- 如果你不是在处理宿主机本地环境问题，优先在 Docker 环境里执行这些命令
+
+#### 构建与部署
+
+```bash
+npm run build:sqlite
+npm run build
+npm run build:without-migrate
+```
+
+## 12. 核心架构补充
+
+### 12.1 多数据源提供者模式
+
+系统通过 `src/server/datasource/` 支持多个数据源：
+
+- `providers/longbridge.ts`
+- `providers/akshare.ts`
+- `registry.ts`
+- `index.ts`
+
+统一入口：
+
+```ts
+const provider = await getQuoteProvider('akshare')
+const quote = await provider.getQuote(symbol)
+const kdj = await provider.calculateKDJ(symbol, KLINE_PERIOD.DAY)
+```
+
+市场与数据源映射：
+
+- A 股（SH、SZ）→ AKShare
+- 港股（HK）、美股（US）→ Longbridge
+
+### 12.2 定时任务系统
+
+任务系统位于 `src/server/tasks/`，采用“任务定义 + 任务执行”两层架构。
+
+任务类型（`catalog.ts`）：
+
+- `DATA_SYNC`
+- `MONITOR`
+- `INDICATOR`
+- `SCREENING`
+
+核心服务：
+
+- `service.ts`
+- `system-scheduler.ts`
+- `executor.ts`
+
+执行链路：
+
+1. `TaskDefinition` 定义任务元数据
+2. `TaskRun` 记录每次执行
+3. `TaskRunEvent` 记录执行日志
+
+### 12.3 收盘选股功能
+
+位于 `src/server/screener/`，支持两种模式：
+
+- `BASIC`
+- `FORMULA`
+
+通达信公式解析器位于：
+
+- `src/server/screener/tdx-formula.ts`
+
+## 13. API / 组件补充地图
+
+### 13.1 API 模块
+
+`src/app/api/` 主要分为：
+
+- `/auth/`
+- `/stocks/`
+- `/monitors/`
+- `/trades/`
+- `/tasks/`
+- `/closing-screener/`
+- `/tdx-formulas/`
+- `/user/`
+
+### 13.2 关键业务组件
+
+- `StockList.tsx`
+- `StockCard.tsx`
+- `KLineChart.tsx`
+- `AlertPanel.tsx`
+- `AlertForm.tsx`
+- `AlertList.tsx`
+- `TradeBoard.tsx`
+- `TaskCenterPanel.tsx`
+- `ClosingScreenerPanel.tsx`
+- `TdxFormulaLibrary.tsx`
+
+## 14. 数据模型补充
+
+Schema 位于：
+
+- `prisma/sqlite/schema.prisma`
+- `prisma/pgsql/schema.prisma`
+
+核心表：
+
+- `Stock`
+- `Quote`
+- `Kdj`
+- `Bbi`
+- `ZhixingTrend`
+- `Monitor`
+- `Notification`
+- `User`
+- `TradeRecord`
+- `TaskDefinition`
+- `TaskRun`
+- `TaskRunEvent`
+- `MarketScreeningRun`
+- `MarketScreeningSnapshot`
+- `MarketScreeningResult`
+- `TdxFormula`
+
+关键字段：
+
+- `User.dataSource`
+- `User.closingScreenerMode`
+- `Quote.dailyKdjId`
+- `Quote.weeklyKdjId`
+- `Quote.bbiId`
+- `Quote.zhixingTrendId`
+
+## 15. 开发注意事项补充
+
+### 15.1 数据库迁移
+
+修改 schema 后，优先执行：
+
+```bash
+npm run db:sync
+```
+
+如果需要创建迁移文件：
+
+```bash
+DB_TYPE=sqlite npm run db:migrate:dev:create
+DB_TYPE=pgsql npm run db:migrate:dev:create
+```
+
+迁移目录：
+
+- `prisma/sqlite/migrations/`
+- `prisma/pgsql/migrations/`
+
+### 15.2 环境变量
+
+必需环境变量：
+
+- `DATABASE_URL`
+- `NEXTAUTH_SECRET`
+- `NEXTAUTH_URL`
+- `LONGPORT_APP_KEY`
+- `LONGPORT_APP_SECRET`
+- `LONGPORT_ACCESS_TOKEN`
+- `PUSHDEER_KEY`
+
+Docker 环境使用：
+
+- `.env.docker`
+
+### 15.3 添加新数据源
+
+步骤：
+
+1. 在 `src/server/datasource/providers/` 新建 provider
+2. 实现 `IQuoteProvider`
+3. 在 `index.ts` 注册
+4. 在调度器里补市场映射
+
+### 15.4 添加新任务类型
+
+步骤：
+
+1. 在 `catalog.ts` 定义任务
+2. 在 `executor.ts` 实现执行逻辑
+3. 在 `system-scheduler.ts` 添加调度规则
+
+### 15.5 Python 脚本
+
+`scripts/akshare_proxy.py` 是 AKShare 的 HTTP 代理服务，用于获取 A 股数据。
+
+## 16. Docker 额外约定
+
+详细文档参考：
+
+- `docs/docker-guide.md`
+
+额外提醒：
+
+- 如果浏览器行为与容器内命令行结果不一致，优先检查端口 3000 当前到底由谁监听
+- 不要让宿主机 `next dev` 和 Docker 容器同时争抢 3000，也不要再使用旧的 `docker-compose`
+- 排查认证问题时，先确认浏览器命中的是不是容器里的服务
+
+数据持久化：
+
+- SQLite：`prisma/sqlite/dev.db`
+- 代码热更新：`src/`、`public/`、`prisma/`、`scripts/`
+
+## 17. 常见问题补充
+
+### 17.1 本地数据库路径问题
+
+运行 Prisma 命令时，要确认使用的是正确 schema：
+
+```bash
+npx prisma generate --schema=./prisma/sqlite/schema.prisma
+npx prisma migrate dev --schema=./prisma/sqlite/schema.prisma
+```
+
+### 17.2 多数据源初始化
+
+数据源 provider 采用延迟初始化，首次调用 `getQuoteProvider()` 时会自动初始化。初始化失败会抛异常。
+
+### 17.3 任务执行超时
+
+后台执行任务或测试时，单次不要超过 60 秒，避免任务长时间卡死。
+
+### 17.4 前端性能优化
+
+优先参考：
+
+- `docs/` 目录
+- React / Next.js 最佳实践

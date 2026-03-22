@@ -16,7 +16,7 @@ const DATABASES = {
     schemaPath: './prisma/sqlite/schema.prisma',
     migrationsPath: './prisma/sqlite/migrations',
     env: '.env',
-    url: 'file:./dev.db'
+    url: 'file:./prisma/sqlite/dev.db'
   },
   production: {
     type: 'pgsql',

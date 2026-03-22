@@ -53,10 +53,10 @@
     --focus-ring: 217 91% 60%;
 
     /* === 语义颜色 - 涨跌 === */
-    --semantic-up: 142 71% 45%; /* 上涨绿 */
-    --semantic-up-bg: 142 71% 45% / 0.1;
-    --semantic-down: 0 84% 60%; /* 下跌红 */
-    --semantic-down-bg: 0 84% 60% / 0.1;
+    --semantic-up: 0 84% 60%; /* 上涨红 */
+    --semantic-up-bg: 0 84% 60% / 0.1;
+    --semantic-down: 142 71% 45%; /* 下跌绿 */
+    --semantic-down-bg: 142 71% 45% / 0.1;
     --semantic-flat: 0 0% 45%; /* 平盘灰 */
 
     /* === 语义颜色 - 任务状态 === */
@@ -78,8 +78,8 @@
     --alert-critical-bg: 0 84% 60% / 0.1;
 
     /* === 数据卡片发光效果 === */
-    --glow-up: 142 71% 45% / 0.15;
-    --glow-down: 0 84% 60% / 0.15;
+    --glow-up: 0 84% 60% / 0.15;
+    --glow-down: 142 71% 45% / 0.15;
     --glow-focus: 217 91% 60% / 0.2;
 
     /* === 滚动条颜色 === */
@@ -152,10 +152,10 @@
     --focus-ring: 217 91% 60%;
 
     /* === 语义颜色 - 涨跌（暗色） === */
-    --semantic-up: 142 71% 50%;
-    --semantic-up-bg: 142 71% 50% / 0.15;
-    --semantic-down: 0 84% 65%;
-    --semantic-down-bg: 0 84% 65% / 0.15;
+    --semantic-up: 0 84% 65%;
+    --semantic-up-bg: 0 84% 65% / 0.15;
+    --semantic-down: 142 71% 50%;
+    --semantic-down-bg: 142 71% 50% / 0.15;
     --semantic-flat: 0 0% 60%;
 
     /* === 语义颜色 - 任务状态（暗色） === */
@@ -177,8 +177,8 @@
     --alert-critical-bg: 0 84% 65% / 0.15;
 
     /* === 数据卡片发光效果（暗色） === */
-    --glow-up: 142 71% 50% / 0.2;
-    --glow-down: 0 84% 65% / 0.2;
+    --glow-up: 0 84% 65% / 0.2;
+    --glow-down: 142 71% 50% / 0.2;
     --glow-focus: 217 91% 65% / 0.25;
 
     /* === 滚动条颜色（暗色） === */
@@ -286,10 +286,18 @@
   }
 
   .bg-up {
+    background-color: hsl(var(--semantic-up));
+  }
+
+  .bg-up-bg {
     background-color: hsl(var(--semantic-up-bg));
   }
 
   .bg-down {
+    background-color: hsl(var(--semantic-down));
+  }
+
+  .bg-down-bg {
     background-color: hsl(var(--semantic-down-bg));
   }
 

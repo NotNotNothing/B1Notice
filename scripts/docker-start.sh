@@ -45,9 +45,10 @@ check_docker() {
         exit 1
     fi
 
-    if ! command -v docker-compose &> /dev/null; then
-        print_error "Docker Compose 未安装，请先安装"
-        echo "安装指南: https://docs.docker.com/compose/install/"
+    if ! docker compose version &> /dev/null; then
+        print_error "Docker Compose V2 不可用，请先确认 Docker Desktop / Docker Engine 已正确安装"
+        echo "排查命令: docker compose version"
+        echo "安装指南: https://docs.docker.com/compose/"
         exit 1
     fi
 
@@ -82,7 +83,7 @@ check_env_file() {
 # 构建镜像
 build_image() {
     print_info "正在构建 Docker 镜像..."
-    if docker-compose build --no-cache; then
+    if docker compose build --no-cache; then
         print_success "镜像构建成功"
     else
         print_error "镜像构建失败"
@@ -93,7 +94,7 @@ build_image() {
 # 启动容器
 start_containers() {
     print_info "正在启动容器..."
-    if docker-compose up -d; then
+    if docker compose up -d; then
         print_success "容器启动成功"
     else
         print_error "容器启动失败"
@@ -126,7 +127,7 @@ wait_for_service() {
 show_status() {
     echo ""
     print_info "容器状态:"
-    docker-compose ps
+    docker compose ps
     echo ""
 
     print_success "🎉 开发环境已启动！"

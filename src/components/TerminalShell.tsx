@@ -14,8 +14,6 @@ import {
   Search,
   ListTodo,
   FileText,
-  Menu,
-  X,
 } from 'lucide-react';
 import { RefreshCw, ArrowUpDown } from 'lucide-react';
 
@@ -222,7 +220,7 @@ export function WorkspaceSidebar({
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 z-sidebar h-screen border-r border-terminal-border-subtle bg-surface-panel transition-all duration-300',
+        'hidden lg:block fixed left-0 top-0 z-sidebar h-screen border-r border-terminal-border-subtle bg-surface-panel transition-all duration-300',
         collapsed ? 'w-sidebar-collapsed' : 'w-sidebar'
       )}
     >
@@ -318,7 +316,6 @@ export function TerminalShell({
   userSettings,
 }: TerminalShellProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <div className='flex min-h-screen bg-surface-base'>
@@ -335,7 +332,7 @@ export function TerminalShell({
         className={cn(
           'flex flex-1 flex-col transition-all duration-300',
           sidebarCollapsed ? 'lg:ml-sidebar-collapsed' : 'lg:ml-sidebar',
-          'mb-bottom-nav lg:mb-0'
+          'mb-bottom-nav lg:mb-0 ml-0'
         )}
       >
         {/* 顶部概览条 */}
@@ -354,18 +351,6 @@ export function TerminalShell({
 
       {/* 移动端底部导航 */}
       <MobileBottomNav activeView={activeView} onViewChange={onViewChange} />
-
-      {/* 移动端菜单按钮 */}
-      <button
-        onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        className='fixed right-4 top-4 z-50 rounded-full bg-primary p-3 text-primary-foreground shadow-lg lg:hidden'
-      >
-        {mobileMenuOpen ? (
-          <X className='h-5 w-5' />
-        ) : (
-          <Menu className='h-5 w-5' />
-        )}
-      </button>
     </div>
   );
 }

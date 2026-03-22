@@ -13,12 +13,17 @@
 ### 1. 启动开发环境
 
 ```bash
-# 方式一：使用启动脚本（推荐）
+# 方式一：使用 npm 脚本（推荐）
+npm run docker:dev:build
+
+# 方式二：使用启动脚本
 ./dev-docker.sh start
 
-# 方式二：直接使用 docker-compose
-docker-compose -f docker-compose.dev.yml up -d
+# 方式三：直接使用 Compose V2
+docker compose up -d
 ```
+
+> 注意：本仓库统一使用 `docker compose`（Compose V2），不要再使用 `docker-compose`。
 
 ### 2. 访问应用
 
@@ -27,21 +32,27 @@ docker-compose -f docker-compose.dev.yml up -d
 ### 3. 查看日志
 
 ```bash
-# 使用启动脚本
+# 使用 npm 脚本
+npm run docker:dev:logs
+
+# 或使用启动脚本
 ./dev-docker.sh logs
 
-# 或使用 docker-compose
-docker-compose -f docker-compose.dev.yml logs -f
+# 或直接使用 Compose V2
+docker compose logs -f
 ```
 
 ### 4. 停止服务
 
 ```bash
-# 使用启动脚本
+# 使用 npm 脚本
+npm run docker:dev:stop
+
+# 或使用启动脚本
 ./dev-docker.sh stop
 
-# 或使用 docker-compose
-docker-compose -f docker-compose.dev.yml down
+# 或直接使用 Compose V2
+docker compose down
 ```
 
 ## 🛠️ 可用命令
@@ -94,7 +105,7 @@ rm -f prisma/sqlite/dev.db
 
 ### 1. 端口冲突
 
-如果端口 3000 已被占用，可以修改 `docker-compose.dev.yml` 中的端口映射：
+如果端口 3000 已被占用，可以修改 `docker-compose.yml` 中的端口映射：
 
 ```yaml
 ports:
@@ -129,7 +140,7 @@ sudo usermod -aG docker $USER
 确保以下文件已正确挂载：
 
 ```bash
-docker-compose -f docker-compose.dev.yml exec b1notice-dev ls -la /app/src
+docker compose exec b1notice-dev ls -la /app/src
 ```
 
 ## 🐛 调试
@@ -137,13 +148,13 @@ docker-compose -f docker-compose.dev.yml exec b1notice-dev ls -la /app/src
 ### 进入容器
 
 ```bash
-docker-compose -f docker-compose.dev.yml exec b1notice-dev sh
+docker compose exec b1notice-dev sh
 ```
 
 ### 查看容器状态
 
 ```bash
-docker-compose -f docker-compose.dev.yml ps
+docker compose ps
 ```
 
 ### 查看容器资源使用
@@ -154,7 +165,7 @@ docker stats b1notice-dev
 
 ## 📦 镜像信息
 
-- **基础镜像**: node:20-alpine
+- **基础镜像**: node:20-slim / Debian Slim 系列
 - **Python 版本**: Python 3.x（用于 AKShare）
 - **Node.js 版本**: Node 20 LTS
 - **包管理器**: pnpm

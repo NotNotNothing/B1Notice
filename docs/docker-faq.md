@@ -13,10 +13,10 @@
 docker system prune -a
 
 # 重新构建（不使用缓存）
-docker-compose build --no-cache
+docker compose build --no-cache
 
 # 查看详细错误信息
-docker-compose build --progress=plain
+docker compose build --progress=plain
 ```
 
 ---
@@ -38,7 +38,7 @@ lsof -i :3000
 npm run docker:dev:logs
 
 # 3. 检查容器状态
-docker-compose ps
+docker compose ps
 
 # 4. 等待更长时间（首次启动需要安装依赖）
 # 服务启动可能需要 1-2 分钟
@@ -52,7 +52,7 @@ docker-compose ps
 
 ```bash
 # 1. 检查数据卷挂载
-docker-compose exec b1notice-dev ls -la /app/src
+docker compose exec b1notice-dev ls -la /app/src
 
 # 2. 重启容器
 npm run docker:dev:restart
@@ -168,7 +168,7 @@ chmod -R 755 prisma/
 
 # 3. 如果是 node_modules 权限问题
 # 删除并重新创建数据卷
-docker-compose down -v
+docker compose down -v
 npm run docker:dev:build
 ```
 
@@ -223,10 +223,10 @@ ports:
 
 ```bash
 # 查看所有环境变量
-docker-compose exec b1notice-dev env
+docker compose exec b1notice-dev env
 
 # 查看特定环境变量
-docker-compose exec b1notice-dev printenv DATABASE_URL
+docker compose exec b1notice-dev printenv DATABASE_URL
 ```
 
 ---
@@ -279,15 +279,14 @@ docker exec -it b1notice-dev sh
 **解决方案**:
 
 ```bash
-# 1. 检查 docker-compose 版本
-docker-compose --version
+# 1. 优先确认 Compose V2 是否可用
+docker compose version
 
-# 2. 如果版本过旧，更新
-# macOS (使用 Homebrew)
-brew upgrade docker-compose
-
-# 3. 尝试使用新版命令格式（Docker Compose V2）
+# 2. 尝试使用新版命令格式（Docker Compose V2）
 docker compose up -d  # 注意：没有连字符
+
+# 3. 如果仍不可用，升级 Docker Desktop 或 Docker Engine
+# macOS 优先升级 Docker Desktop，而不是继续安装旧版 docker-compose
 ```
 
 ---
@@ -306,10 +305,10 @@ docker compose up -d  # 注意：没有连字符
 
 ```bash
 # 1. 查看容器状态
-docker-compose ps
+docker compose ps
 
 # 2. 查看容器日志（实时）
-docker-compose logs -f b1notice-dev
+docker compose logs -f b1notice-dev
 
 # 3. 查看容器详细信息
 docker inspect b1notice-dev
@@ -318,7 +317,7 @@ docker inspect b1notice-dev
 docker stats b1notice-dev
 
 # 5. 进入容器 Shell
-docker-compose exec b1notice-dev sh
+docker compose exec b1notice-dev sh
 
 # 6. 查看容器进程
 docker top b1notice-dev

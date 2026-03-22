@@ -1,0 +1,23 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e15]:
+    - generic [ref=e16]:
+      - heading "账号登录" [level=1] [ref=e17]
+      - paragraph [ref=e18]: 请输入您的账号信息进行登录
+    - generic [ref=e19]:
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - text: 用户名
+          - textbox "用户名" [ref=e23]:
+            - /placeholder: 请输入用户名
+        - generic [ref=e24]:
+          - text: 密码
+          - textbox "密码" [ref=e25]:
+            - /placeholder: 请输入密码
+        - button "登录" [ref=e26] [cursor=pointer]
+      - generic [ref=e31]: 没有账号?
+      - link "注册" [ref=e32] [cursor=pointer]:
+        - /url: /register
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e9] [cursor=pointer]:
+    - img [ref=e10]
+  - alert [ref=e13]

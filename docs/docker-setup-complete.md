@@ -40,6 +40,14 @@ npm run docker:dev:build
 npm run docker:dev
 ```
 
+### 方式三：直接使用 Compose V2
+
+```bash
+docker compose up -d --build
+```
+
+> 注意：仓库已统一使用 `docker compose`。如果你看到 `docker-compose`，请视为历史写法并改用 Compose V2。
+
 ## 📋 可用命令
 
 ```bash
@@ -114,15 +122,15 @@ npm run docker:dev:clean
 
 ```bash
 # 1. 同步数据库
-docker-compose -f docker-compose.dev.yml exec b1notice-dev \
+docker compose exec b1notice-dev \
   npx prisma db push --schema ./prisma/sqlite/schema.prisma
 
 # 2. 创建默认用户
-docker-compose -f docker-compose.dev.yml exec b1notice-dev \
+docker compose exec b1notice-dev \
   node scripts/create-default-user.js
 
 # 3. 重启容器
-docker-compose -f docker-compose.dev.yml restart b1notice-dev
+docker compose restart b1notice-dev
 ```
 
 详细排查指南：[docs/docker-login-troubleshooting.md](./docker-login-troubleshooting.md)
@@ -170,7 +178,7 @@ npm run docker:dev:build
 
 ## 🎯 下一步
 
-1. **启动环境**: `./scripts/docker-start.sh`
+1. **启动环境**: `npm run dev`
 2. **查看日志**: `npm run docker:dev:logs`
 3. **访问应用**: http://localhost:3000
 4. **开始开发**: 修改 `src/` 目录下的文件

@@ -40,13 +40,16 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.username || !credentials?.password) {
+        const username = credentials?.username?.trim();
+        const password = credentials?.password;
+
+        if (!username || !password) {
           throw new Error("请输入用户名和密码");
         }
 
         const user = await prisma.user.findUnique({
           where: {
-            username: credentials.username,
+            username,
           },
         });
 
@@ -55,7 +58,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         const isPasswordValid = await compare(
-          credentials.password,
+          password,
           user.password,
         );
 

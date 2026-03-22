@@ -4,14 +4,35 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: 'standalone',
 
-  // Turbopack 配置 - Next.js 16 中默认启用
-  turbopack: {
-    // 设置工作空间根目录以避免警告
-    root: process.cwd(),
-  },
+  // 禁用 Turbopack，使用 Webpack（解决 pnpm 符号链接问题）
+  // Turbopack 配置已注释 - 在 Next.js 16 中默认启用，但我们禁用它
+  // turbopack: {
+  //   root: process.cwd(),
+  // },
 
   // 保留 webpack 配置作为后备，用于处理特殊模块
   webpack: (config, { isServer }) => {
+    // 解决 pnpm 符号链接问题
+    config.resolve.symlinks = true;
+
+    // 添加 @tanstack 包的模块解析
+    const path = require('path');
+    const tanstackPath = path.resolve(__dirname, 'node_modules/@tanstack');
+    if (!config.resolve.alias) {
+      config.resolve.alias = {};
+    }
+    config.resolve.alias['@tanstack/react-table'] = path.join(tanstackPath, 'react-table');
+
+    // 修复 @tanstack/react-table 的 ES 模块解析问题
+    // 确保正确处理 ES 模块格式
+    config.module.rules.push({
+      test: /@tanstack\/.*\.js$/,
+      type: 'javascript/auto',
+      resolve: {
+        fullySpecified: false,
+      },
+    });
+
     if (isServer) {
       // 在服务端外部化 longport 模块 - 在构建环境中避免加载问题
       config.externals.push({
@@ -39,7 +60,7 @@ const nextConfig: NextConfig = {
   },
 
   // Next.js 16 中，直接在根级别指定 serverExternalPackages
-  serverExternalPackages: ['longport'],
+  serverExternalPackages: ['longport', '@tanstack/react-table'],
 };
 
 export default nextConfig;
