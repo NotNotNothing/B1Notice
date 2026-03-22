@@ -9,25 +9,25 @@
 @layer base {
   :root {
     /* === 基础颜色系统 === */
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
+    --background: 210 20% 97%;
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 220 54% 16%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 22% 92%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 24% 93%;
+    --muted-foreground: 215 16% 39%;
+    --accent: 197 84% 92%;
+    --accent-foreground: 222 47% 11%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
+    --border: 214 24% 86%;
+    --input: 214 24% 86%;
+    --ring: 200 98% 39%;
 
     /* === 图表颜色 === */
     --chart-1: 12 76% 61%;
@@ -38,19 +38,19 @@
 
     /* === 终端背景层级系统 === */
     /* base: 最底层背景 */
-    --surface-base: 0 0% 98%;
+    --surface-base: 205 36% 95%;
     /* panel: 面板背景 */
     --surface-panel: 0 0% 100%;
     /* elevated: 浮层/卡片背景 */
-    --surface-elevated: 0 0% 100%;
+    --surface-elevated: 210 33% 98%;
     /* overlay: 遮罩层 */
     --surface-overlay: 0 0% 0% / 0.5;
 
     /* === 终端边框与描边 === */
-    --border-subtle: 0 0% 90%;
-    --border-default: 0 0% 85%;
-    --border-emphasis: 0 0% 70%;
-    --focus-ring: 217 91% 60%;
+    --border-subtle: 210 21% 90%;
+    --border-default: 214 24% 82%;
+    --border-emphasis: 213 23% 68%;
+    --focus-ring: 200 98% 39%;
 
     /* === 语义颜色 - 涨跌 === */
     --semantic-up: 0 84% 60%; /* 上涨红 */
@@ -83,12 +83,12 @@
     --glow-focus: 217 91% 60% / 0.2;
 
     /* === 滚动条颜色 === */
-    --scrollbar-track: 0 0% 95%;
-    --scrollbar-thumb: 0 0% 75%;
-    --scrollbar-thumb-hover: 0 0% 60%;
+    --scrollbar-track: 210 25% 92%;
+    --scrollbar-thumb: 214 18% 69%;
+    --scrollbar-thumb-hover: 214 20% 54%;
 
     /* === 选区颜色 === */
-    --selection: 217 91% 60% / 0.3;
+    --selection: 199 89% 48% / 0.24;
 
     /* === 圆角 === */
     --radius: 0.5rem;
@@ -105,8 +105,8 @@
     --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 
     /* === 字体系统 === */
-    --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+    --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
   }
 
   /* === 暗色主题 === */
@@ -206,6 +206,11 @@
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
     font-feature-settings: "rlig" 1, "calt" 1;
+    background-image:
+      radial-gradient(circle at top left, rgb(56 189 248 / 0.12), transparent 28%),
+      radial-gradient(circle at top right, rgb(14 165 233 / 0.08), transparent 24%),
+      linear-gradient(180deg, rgb(248 250 252 / 0.98) 0%, rgb(237 242 247 / 0.96) 100%);
+    background-attachment: fixed;
   }
 
   /* === 文本选区样式 === */
@@ -238,6 +243,13 @@
   *:focus-visible {
     outline: 2px solid hsl(var(--focus-ring));
     outline-offset: 2px;
+  }
+
+  .dark body {
+    background-image:
+      radial-gradient(circle at top left, rgb(14 165 233 / 0.15), transparent 24%),
+      radial-gradient(circle at top right, rgb(15 23 42 / 0.3), transparent 22%),
+      linear-gradient(180deg, rgb(2 8 23 / 0.98) 0%, rgb(7 15 28 / 0.98) 100%);
   }
 }
 
@@ -391,5 +403,40 @@
 
   .shadow-xl {
     box-shadow: var(--shadow-xl);
+  }
+
+  .panel-shell {
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.88), rgb(255 255 255 / 0.72));
+    backdrop-filter: blur(18px);
+    border: 1px solid hsl(var(--border-subtle));
+    box-shadow: 0 18px 50px rgb(15 23 42 / 0.08);
+  }
+
+  .dark .panel-shell {
+    background:
+      linear-gradient(180deg, rgb(15 23 42 / 0.86), rgb(15 23 42 / 0.74));
+    box-shadow: 0 20px 60px rgb(2 8 23 / 0.45);
+  }
+
+  .section-fade-in {
+    animation: section-fade-in 0.55s ease-out both;
+  }
+
+  .section-fade-in-delay {
+    animation: section-fade-in 0.7s ease-out both;
+    animation-delay: 0.08s;
+  }
+}
+
+@keyframes section-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

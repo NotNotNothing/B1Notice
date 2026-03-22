@@ -68,21 +68,34 @@ export const AlertPanel = ({ stocks }: AlertPanelProps) => {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-terminal-border-default bg-white/90 p-4 shadow-sm backdrop-blur sm:p-6 dark:border-terminal-border-default dark:bg-surface-panel/80">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-1.5">
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-              指标监控
+      <div className="panel-shell relative overflow-hidden rounded-[28px] p-5 sm:p-6">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/70 to-transparent" />
+        <div className="pointer-events-none absolute -right-10 top-0 h-32 w-32 rounded-full bg-sky-400/10 blur-3xl" />
+        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl space-y-2">
+            <div className="text-[11px] uppercase tracking-[0.24em] text-sky-700 dark:text-sky-300">
+              Alert Design
+            </div>
+            <h2 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
+              让提醒规则更像一个可维护的观察面，而不是零散开关。
             </h2>
-            <p className="text-sm text-muted-foreground dark:text-slate-300">
-              为关键个股建立多维度的提醒组合，桌面与移动端保持同步。
+            <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
+              先选关键标的，再组合价格、趋势和结构条件，减少重复盯盘，也让提醒逻辑更容易回看。
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="rounded-2xl border border-white/70 bg-white/70 px-4 py-3 text-sm dark:border-white/10 dark:bg-white/5">
+              <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+                Coverage
+              </div>
+              <div className="mt-1 font-semibold text-slate-900 dark:text-slate-100">
+                {stocks.length} 只股票可配置
+              </div>
+            </div>
             <Button
               variant="outline"
               size="sm"
-              className="h-10 rounded-md border-terminal-border-default bg-white/70 px-3 text-foreground shadow-sm dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200"
+              className="h-11 rounded-xl border-terminal-border-default bg-white/70 px-4 text-foreground shadow-sm dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200"
             >
               <Settings className="mr-2 h-4 w-4" />
               批量设置
@@ -111,7 +124,7 @@ export const AlertPanel = ({ stocks }: AlertPanelProps) => {
               <Card
                 key={stock.symbol}
                 className={cn(
-                  'relative flex h-full flex-col gap-4 overflow-hidden rounded-3xl border bg-white/90 p-4 text-slate-900 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:content-[""] sm:p-6 dark:bg-surface-panel/80 dark:text-slate-100',
+                  'relative flex h-full flex-col gap-4 overflow-hidden rounded-[28px] border bg-white/82 p-4 text-slate-900 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-xl before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:content-[""] sm:p-6 dark:bg-surface-panel/80 dark:text-slate-100',
                   getStockToneClass(stock),
                 )}
               >

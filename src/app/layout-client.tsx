@@ -8,19 +8,12 @@
  */
 'use client';
 
-import { Inter } from 'next/font/google';
+import { GeistMono, GeistSans } from 'geist/font';
 import './globals.css';
 import { Toaster } from 'sonner';
 import { SessionProvider, useSession } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-
-// Inter 用于标题和数值显示
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-});
 
 function AuthCheck({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
@@ -55,7 +48,10 @@ export default function RootLayoutClient({
   children: React.ReactNode;
 }) {
   return (
-    <html lang='zh-CN' className={inter.variable}>
+    <html
+      lang='zh-CN'
+      className={`${GeistSans.variable} ${GeistMono.variable}`}
+    >
       <head>
         <meta name='apple-mobile-web-app-capable' content='yes' />
         <meta
