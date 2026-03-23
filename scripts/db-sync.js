@@ -23,13 +23,21 @@ const DATABASES = {
     schemaPath: './prisma/pgsql/schema.prisma',
     migrationsPath: './prisma/pgsql/migrations',
     env: '.env.production',
-    url: process.env.PROD_DATABASE_URL || 'postgresql://postgres:gvjoaaoeewxevhjx@10.0.0.7:5431/postgres'
+    url: process.env.PROD_DATABASE_URL || process.env.DATABASE_URL || ''
   }
 };
 
 /**
  * 执行命令并输出结果
  */
+
+function ensureDatabaseUrl(env) {
+  if (env === 'production' && !DATABASES.production.url) {
+    console.error('❌ 生产环境缺少数据库连接。请设置 PROD_DATABASE_URL 或 DATABASE_URL');
+    process.exit(1);
+  }
+}
+
 function execCommand(command, description) {
   console.log(`\n🔄 ${description}...`);
   console.log(`📝 执行命令: ${command}`);
@@ -84,7 +92,7 @@ function validateSchemaConsistency() {
  */
 function generateMigration(env, migrationName) {
   const db = DATABASES[env];
-  const envFile = env === 'production' ? '.env.production' : '.env';
+  ensureDatabaseUrl(env);
 
   const command = env === 'production'
     ? `DATABASE_URL="${db.url}" npx prisma migrate dev --create-only --name ${migrationName} --schema ${db.schemaPath}`
@@ -98,6 +106,7 @@ function generateMigration(env, migrationName) {
  */
 function applyMigration(env) {
   const db = DATABASES[env];
+  ensureDatabaseUrl(env);
 
   const command = env === 'production'
     ? `DATABASE_URL="${db.url}" npx prisma migrate deploy --schema ${db.schemaPath}`
@@ -111,6 +120,7 @@ function applyMigration(env) {
  */
 function pushSchema(env) {
   const db = DATABASES[env];
+  ensureDatabaseUrl(env);
 
   const command = env === 'production'
     ? `DATABASE_URL="${db.url}" npx prisma db push --schema ${db.schemaPath}`
@@ -141,6 +151,8 @@ function resetDatabase(env) {
  */
 function checkMigrationStatus(env) {
   const db = DATABASES[env];
+
+  ensureDatabaseUrl(env);
 
   const command = env === 'production'
     ? `DATABASE_URL="${db.url}" npx prisma migrate status --schema ${db.schemaPath}`

@@ -4,15 +4,30 @@
 
 ## 环境变量配置
 
-在项目根目录创建 `.env` 文件，并配置以下环境变量：
+推荐先复制模板，再按运行环境调整：
 
-### 环境变量说明
+```bash
+cp .env.example .env
+cp .env.docker.example .env.docker
+```
+
+### 环境文件约定
+
+- `.env` / `.env.development`：本地开发默认读取
+- `.env.docker`：Docker 开发环境通过 `docker-compose.yml` 加载
+- Nixpacks / 线上：不要依赖仓库内 `.env.production`，改为在部署平台配置环境变量
+
+### 关键环境变量说明
 
 - `DATABASE_URL`: 数据库连接字符串。支持 SQLite、PostgreSQL 和 MySQL
-- `PUSHDEER_KEY`: PushDeer 推送服务的 Key，用于发送通知
+- `DB_TYPE`: Prisma schema 选择，开发默认 `sqlite`，线上默认 `pgsql`
+- `NEXTAUTH_SECRET`: NextAuth 密钥
+- `NEXTAUTH_URL`: 当前环境对外访问地址
+- `PUSHDEER_KEY`: PushDeer 推送服务 Key
 - `LONGPORT_APP_KEY`: LongPort API 的 App Key
 - `LONGPORT_APP_SECRET`: LongPort API 的 App Secret
 - `LONGPORT_ACCESS_TOKEN`: LongPort API 的 Access Token
+- `NPM_CONFIG_REGISTRY` / `PIP_INDEX_URL`: Docker / Nixpacks 构建镜像源配置
 
 ## 开发环境启动
 
