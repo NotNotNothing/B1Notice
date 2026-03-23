@@ -28,6 +28,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { formatBeijingDateTime } from "@/lib/time";
 import type {
   TaskApiEnvelope,
@@ -294,18 +302,154 @@ export function TaskCenterPanel() {
   return (
     <div className="space-y-6">
       <Card className="rounded-3xl border border-terminal-border-default bg-white/90 shadow-sm backdrop-blur dark:border-terminal-border-default dark:bg-surface-panel/80">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
+            <Terminal className="h-5 w-5" />
+            任务定义
+          </CardTitle>
+          <CardDescription>
+            统一管理后台行情刷新、指标监控、收盘选股等任务，支持暂停、恢复和手动执行。
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-lg border border-terminal-border-default dark:border-slate-700">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>任务名称</TableHead>
+                  <TableHead>调度规则</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead>最近运行</TableHead>
+                  <TableHead>最近成功</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {definitions.map((definition) => {
+                  const running =
+                    definition.latestRun?.status === "RUNNING" ||
+                    definition.latestRun?.status === "STOPPING";
+                  const actionPrefix = definition.isPaused ? "resume" : "pause";
+
+                  return (
+                    <TableRow key={definition.id}>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="font-medium text-slate-900 dark:text-white">
+                            {definition.name}
+                          </div>
+                          <div className="flex gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              {definition.category}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              最大重试 {definition.maxRetries}
+                            </Badge>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground dark:text-slate-300">
+                        {definition.schedule || "仅手动执行"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={getStatusBadgeClassName(
+                            definition.latestRun?.status ??
+                              definition.lastStatus,
+                          )}
+                        >
+                          {definition.isPaused
+                            ? "已暂停"
+                            : formatStatusLabel(
+                                definition.latestRun?.status ??
+                                  definition.lastStatus,
+                              )}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground dark:text-slate-300">
+                        {formatDateTime(definition.lastRunAt)}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground dark:text-slate-300">
+                        {formatDateTime(definition.lastSuccessAt)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              void handleDefinitionAction(definition, "run")
+                            }
+                            disabled={
+                              running || actionKey === `run-${definition.id}`
+                            }
+                            className="rounded-md"
+                          >
+                            {actionKey === `run-${definition.id}` ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Play className="h-4 w-4" />
+                            )}
+                            <span className="ml-2 hidden xl:inline">
+                              手动执行
+                            </span>
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              void handleDefinitionAction(
+                                definition,
+                                definition.isPaused ? "resume" : "pause",
+                              )
+                            }
+                            disabled={
+                              actionKey === `${actionPrefix}-${definition.id}`
+                            }
+                            className="rounded-md"
+                          >
+                            {definition.isPaused ? (
+                              <Play className="h-4 w-4" />
+                            ) : (
+                              <Pause className="h-4 w-4" />
+                            )}
+                            <span className="ml-2 hidden xl:inline">
+                              {definition.isPaused ? "恢复" : "暂停"}
+                            </span>
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {definitions.length === 0 && !loading && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={6}
+                      className="h-32 text-center text-muted-foreground dark:text-slate-300"
+                    >
+                      暂无任务定义
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-3xl border border-terminal-border-default bg-white/90 shadow-sm backdrop-blur dark:border-terminal-border-default dark:bg-surface-panel/80">
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-2">
-            <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-white">
-              <Terminal className="h-5 w-5" />
-              任务中心
+            <CardTitle className="text-slate-900 dark:text-white">
+              最近运行
             </CardTitle>
             <CardDescription>
-              统一查看后台行情刷新、指标监控、收盘选股等任务，并支持暂停、停止和失败重试。
+              自动每 5 秒刷新一次，显示最近 20 条任务运行记录
             </CardDescription>
           </div>
           <Button
             variant="outline"
+            size="sm"
             onClick={() => void loadOverview()}
             disabled={loading || isPending}
             className="rounded-md"
@@ -313,224 +457,133 @@ export function TaskCenterPanel() {
             <RefreshCw
               className={`mr-2 h-4 w-4 ${loading || isPending ? "animate-spin" : ""}`}
             />
-            刷新任务
+            刷新
           </Button>
         </CardHeader>
-      </Card>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {definitions.map((definition) => {
-          const running =
-            definition.latestRun?.status === "RUNNING" ||
-            definition.latestRun?.status === "STOPPING";
-          const actionPrefix = definition.isPaused ? "resume" : "pause";
-
-          return (
-            <Card
-              key={definition.id}
-              className="rounded-3xl border border-terminal-border-default bg-white/90 shadow-sm dark:border-terminal-border-default dark:bg-surface-panel/80"
-            >
-              <CardHeader className="space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-2">
-                    <CardTitle className="text-lg text-slate-900 dark:text-white">
-                      {definition.name}
-                    </CardTitle>
-                    <CardDescription>
-                      {definition.schedule || "仅手动执行"}
-                    </CardDescription>
-                  </div>
-                  <Badge
-                    className={getStatusBadgeClassName(
-                      definition.latestRun?.status ?? definition.lastStatus,
-                    )}
-                  >
-                    {definition.isPaused
-                      ? "已暂停"
-                      : formatStatusLabel(
-                          definition.latestRun?.status ?? definition.lastStatus,
-                        )}
-                  </Badge>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="outline">{definition.category}</Badge>
-                  <Badge variant="outline">
-                    最大重试 {definition.maxRetries}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <p className="text-muted-foreground dark:text-slate-300">
-                      最近运行
-                    </p>
-                    <p className="mt-1 font-medium text-slate-900 dark:text-white">
-                      {formatDateTime(definition.lastRunAt)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground dark:text-slate-300">
-                      最近成功
-                    </p>
-                    <p className="mt-1 font-medium text-slate-900 dark:text-white">
-                      {formatDateTime(definition.lastSuccessAt)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-terminal-border-default p-3 text-sm dark:border-slate-700">
-                  <p className="text-muted-foreground dark:text-slate-300">
-                    最新摘要
-                  </p>
-                  <p className="mt-2 text-slate-900 dark:text-white">
-                    {definition.latestRun?.summary || "暂无摘要"}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    onClick={() =>
-                      void handleDefinitionAction(definition, "run")
-                    }
-                    disabled={running || actionKey === `run-${definition.id}`}
-                    className="rounded-md"
-                  >
-                    {actionKey === `run-${definition.id}` ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Play className="mr-2 h-4 w-4" />
-                    )}
-                    手动执行
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      void handleDefinitionAction(
-                        definition,
-                        definition.isPaused ? "resume" : "pause",
-                      )
-                    }
-                    disabled={actionKey === `${actionPrefix}-${definition.id}`}
-                    className="rounded-md"
-                  >
-                    {definition.isPaused ? (
-                      <Play className="mr-2 h-4 w-4" />
-                    ) : (
-                      <Pause className="mr-2 h-4 w-4" />
-                    )}
-                    {definition.isPaused ? "恢复调度" : "暂停调度"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-            最近运行
-          </h3>
-          <p className="text-sm text-muted-foreground dark:text-slate-300">
-            自动每 5 秒刷新一次
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          {runs.map((run) => (
-            <Card
-              key={run.id}
-              className="rounded-3xl border border-terminal-border-default bg-white/90 shadow-sm dark:border-terminal-border-default dark:bg-surface-panel/80"
-            >
-              <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge className={getStatusBadgeClassName(run.status)}>
-                      {formatStatusLabel(run.status)}
-                    </Badge>
-                    <span className="font-medium text-slate-900 dark:text-white">
-                      {run.taskName}
-                    </span>
-                    <span className="text-sm text-muted-foreground dark:text-slate-300">
+        <CardContent>
+          <div className="rounded-lg border border-terminal-border-default dark:border-slate-700">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[100px]">状态</TableHead>
+                  <TableHead>任务名称</TableHead>
+                  <TableHead className="hidden lg:table-cell">触发方式</TableHead>
+                  <TableHead className="hidden md:table-cell">开始时间</TableHead>
+                  <TableHead className="hidden xl:table-cell">结束时间</TableHead>
+                  <TableHead className="hidden xl:table-cell">进度</TableHead>
+                  <TableHead className="hidden 2xl:table-cell">摘要</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {runs.map((run) => (
+                  <TableRow key={run.id}>
+                    <TableCell>
+                      <Badge className={getStatusBadgeClassName(run.status)}>
+                        {formatStatusLabel(run.status)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium text-slate-900 dark:text-white">
+                        {run.taskName}
+                      </div>
+                      <div className="mt-1 text-xs text-muted-foreground md:hidden dark:text-slate-300">
+                        {formatTriggerLabel(run.triggeredBy)}
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
                       {formatTriggerLabel(run.triggeredBy)}
-                    </span>
-                  </div>
-
-                  <div className="grid gap-2 text-sm text-foreground sm:grid-cols-2 lg:grid-cols-4 dark:text-slate-300">
-                    <div>开始时间：{formatDateTime(run.startedAt)}</div>
-                    <div>结束时间：{formatDateTime(run.finishedAt)}</div>
-                    <div>进度：{getProgressText(run)}</div>
-                    <div>尝试次数：第 {run.attempt} 次</div>
-                  </div>
-
-                  <div className="rounded-lg border border-terminal-border-default p-3 text-sm dark:border-slate-700">
-                    <p className="text-slate-900 dark:text-white">
-                      {run.summary || "暂无摘要"}
-                    </p>
-                    {run.errorMessage ? (
-                      <p className="mt-2 text-rose-600 dark:text-rose-300">
-                        {run.errorMessage}
-                      </p>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2 lg:justify-end">
-                  <Button
-                    variant="outline"
-                    onClick={() => void handleRunAction(run, "detail")}
-                    className="rounded-md"
-                  >
-                    查看详情
-                  </Button>
-                  {run.status === "RUNNING" || run.status === "STOPPING" ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => void handleRunAction(run, "stop")}
-                      disabled={
-                        actionKey === `stop-${run.id}` ||
-                        run.status === "STOPPING"
-                      }
-                      className="rounded-md"
+                    </TableCell>
+                    <TableCell className="hidden text-sm md:table-cell">
+                      {formatDateTime(run.startedAt)}
+                    </TableCell>
+                    <TableCell className="hidden text-sm xl:table-cell">
+                      {formatDateTime(run.finishedAt)}
+                    </TableCell>
+                    <TableCell className="hidden xl:table-cell">
+                      <div className="text-sm">
+                        <div>{getProgressText(run)}</div>
+                        <div className="text-xs text-muted-foreground dark:text-slate-300">
+                          第 {run.attempt} 次
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden 2xl:table-cell">
+                      <div className="max-w-xs space-y-1">
+                        <div className="truncate text-sm text-slate-900 dark:text-white">
+                          {run.summary || "暂无摘要"}
+                        </div>
+                        {run.errorMessage ? (
+                          <div className="truncate text-xs text-rose-600 dark:text-rose-300">
+                            {run.errorMessage}
+                          </div>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void handleRunAction(run, "detail")}
+                          className="rounded-md"
+                        >
+                          详情
+                        </Button>
+                        {run.status === "RUNNING" ||
+                        run.status === "STOPPING" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void handleRunAction(run, "stop")}
+                            disabled={
+                              actionKey === `stop-${run.id}` ||
+                              run.status === "STOPPING"
+                            }
+                            className="rounded-md"
+                          >
+                            {actionKey === `stop-${run.id}` ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Square className="h-4 w-4" />
+                            )}
+                            <span className="ml-2 hidden xl:inline">停止</span>
+                          </Button>
+                        ) : null}
+                        {run.status === "FAILED" || run.status === "STOPPED" ? (
+                          <Button
+                            size="sm"
+                            onClick={() => void handleRunAction(run, "retry")}
+                            disabled={actionKey === `retry-${run.id}`}
+                            className="rounded-md"
+                          >
+                            {actionKey === `retry-${run.id}` ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RotateCcw className="h-4 w-4" />
+                            )}
+                            <span className="ml-2 hidden xl:inline">重试</span>
+                          </Button>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {!loading && runs.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={8}
+                      className="h-32 text-center text-muted-foreground dark:text-slate-300"
                     >
-                      {actionKey === `stop-${run.id}` ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Square className="mr-2 h-4 w-4" />
-                      )}
-                      停止
-                    </Button>
-                  ) : null}
-                  {run.status === "FAILED" || run.status === "STOPPED" ? (
-                    <Button
-                      onClick={() => void handleRunAction(run, "retry")}
-                      disabled={actionKey === `retry-${run.id}`}
-                      className="rounded-md"
-                    >
-                      {actionKey === `retry-${run.id}` ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <RotateCcw className="mr-2 h-4 w-4" />
-                      )}
-                      失败重试
-                    </Button>
-                  ) : null}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-
-          {!loading && runs.length === 0 ? (
-            <Card className="rounded-3xl border border-dashed border-terminal-border-default bg-white/80 shadow-sm dark:border-slate-700 dark:bg-surface-panel/70">
-              <CardContent className="flex min-h-[180px] items-center justify-center p-8 text-center text-muted-foreground dark:text-slate-300">
-                暂无任务运行记录
-              </CardContent>
-            </Card>
-          ) : null}
-        </div>
-      </div>
+                      暂无任务运行记录
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="mx-auto max-h-[85vh] w-[96vw] max-w-3xl overflow-y-auto rounded-3xl border-terminal-border-default bg-white/95 dark:border-terminal-border-default dark:bg-surface-panel/95">
