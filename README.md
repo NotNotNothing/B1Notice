@@ -82,6 +82,34 @@ npm run docker:dev:clean
 
 查看 [Docker 开发环境指南](./docs/docker-guide.md) 了解更多信息。
 
+### Nixpacks 线上部署
+
+线上如果使用 **Nixpacks**，仓库根目录已提供 `nixpacks.toml`，配置原则与开发 Docker 保持一致：
+
+- Node 版本固定为 `20`
+- `pnpm` 固定为 `10.32.1`
+- 默认继续使用 npm / PyPI 镜像源，降低构建阶段网络抖动
+- 保留 Python 运行时，并安装 `akshare`、`requests`
+- 使用 PostgreSQL schema：`prisma/pgsql/schema.prisma`
+- 启动前自动执行 `prisma migrate deploy`
+
+部署平台需要至少补齐以下环境变量：
+
+- `DATABASE_URL`
+- `NEXTAUTH_SECRET`
+- `NEXTAUTH_URL`
+- `LONGPORT_APP_KEY`
+- `LONGPORT_APP_SECRET`
+- `LONGPORT_ACCESS_TOKEN`
+- `PUSHDEER_KEY`
+
+如果线上环境不需要镜像源，可在平台环境变量中覆盖：
+
+```bash
+NPM_CONFIG_REGISTRY=https://registry.npmjs.org
+PIP_INDEX_URL=https://pypi.org/simple
+```
+
 ### 本地开发（仅调试/排障时使用）
 
 除非明确需要调试宿主机环境，否则不要直接启动本地 `next dev`。

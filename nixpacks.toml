@@ -1,17 +1,43 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "python3", "pkg-config", "postgresql", "pnpm"]
+nixPkgs = [
+  "nodejs_20",
+  "python3",
+  "gcc",
+  "pkg-config",
+  "postgresql",
+  "sqlite"
+]
+
+[phases.install]
+cmds = [
+  "corepack enable",
+  "corepack prepare pnpm@10.32.1 --activate",
+  "pnpm config set registry ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}",
+  "pnpm config set fetch-retries 5",
+  "pnpm config set fetch-retry-mintimeout 20000",
+  "pnpm config set fetch-retry-maxtimeout 120000",
+  "pnpm config set network-timeout 300000",
+  "pnpm install --frozen-lockfile",
+  "python3 -m pip install --break-system-packages --no-cache-dir -i ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple} akshare requests"
+]
 
 [phases.build]
 cmds = [
-  "pnpm install --frozen-lockfile",
-  "npx prisma generate --schema ./prisma/pgsql/schema.prisma",
-  "pnpm run build"
+  "DB_TYPE=pgsql pnpm run db:generate",
+  "DB_TYPE=pgsql pnpm exec next build --webpack"
 ]
 
 [start]
-cmd = "pnpm run start"
+cmd = "sh -lc 'DB_TYPE=pgsql pnpm run db:deploy && exec pnpm exec next start --hostname 0.0.0.0 --port ${PORT:-3000}'"
 
 [variables]
 NODE_ENV = "production"
 NEXT_TELEMETRY_DISABLED = "1"
 DB_TYPE = "pgsql"
+PYTHONIOENCODING = "utf-8"
+NPM_CONFIG_REGISTRY = "https://registry.npmmirror.com"
+PIP_INDEX_URL = "https://pypi.tuna.tsinghua.edu.cn/simple"
+NPM_CONFIG_FETCH_RETRIES = "5"
+NPM_CONFIG_FETCH_RETRY_MIN_TIMEOUT = "20000"
+NPM_CONFIG_FETCH_RETRY_MAX_TIMEOUT = "120000"
+NPM_CONFIG_NETWORK_TIMEOUT = "300000"
