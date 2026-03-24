@@ -1,6 +1,6 @@
 [phases.setup]
 nixPkgs = [
-  "nodejs_24",
+  "nodejs_22",
   "python3",
   "gcc",
   "pkg-config",
