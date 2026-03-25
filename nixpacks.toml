@@ -10,14 +10,7 @@ nixPkgs = [
 
 [phases.install]
 cmds = [
-  "npm install -g pnpm@10.32.1",
-  "pnpm --version",
-  "pnpm config set registry ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com}",
-  "pnpm config set fetch-retries 5",
-  "pnpm config set fetch-retry-mintimeout 20000",
-  "pnpm config set fetch-retry-maxtimeout 120000",
-  "pnpm config set network-timeout 300000",
-  "pnpm install --frozen-lockfile",
+  "npm install -g pnpm@10.32.1 && $(npm bin -g)/pnpm --version && $(npm bin -g)/pnpm config set registry ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com} && $(npm bin -g)/pnpm config set fetch-retries 5 && $(npm bin -g)/pnpm config set fetch-retry-mintimeout 20000 && $(npm bin -g)/pnpm config set fetch-retry-maxtimeout 120000 && $(npm bin -g)/pnpm config set network-timeout 300000 && $(npm bin -g)/pnpm install --frozen-lockfile",
   "python3 -m pip install --break-system-packages --no-cache-dir -i ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple} akshare requests"
 ]
 
