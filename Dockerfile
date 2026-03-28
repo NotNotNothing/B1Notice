@@ -5,6 +5,11 @@ ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
 
 FROM ${NODE_IMAGE} AS base
 
+# 重新声明 ARG 变量，使其在当前阶段可用
+ARG PNPM_VERSION
+ARG NPM_REGISTRY
+ARG PIP_INDEX_URL
+
 ENV npm_config_registry=${NPM_REGISTRY} \
     npm_config_fetch_retries=5 \
     npm_config_fetch_retry_mintimeout=20000 \
