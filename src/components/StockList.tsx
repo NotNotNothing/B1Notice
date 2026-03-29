@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -22,7 +24,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Search } from "lucide-react";
+import { Loader2, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { STOCK_LIST_COLUMN_SIZES } from "@/lib/table-column-utils";
 
 interface StockListProps {
@@ -132,7 +134,9 @@ const getSignalTags = (stock: StockData) => {
 };
 
 // 定义表格列
-const useStockColumns = (): ColumnDef<StockData>[] => {
+const useStockColumns = (
+  onDeleteStock: (stock: StockData) => void,
+): ColumnDef<StockData>[] => {
   return useMemo(
     () => [
       {
@@ -309,8 +313,30 @@ const useStockColumns = (): ColumnDef<StockData>[] => {
         minSize: STOCK_LIST_COLUMN_SIZES.updatedAt.minSize,
         maxSize: STOCK_LIST_COLUMN_SIZES.updatedAt.maxSize,
       },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteStock(row.original);
+            }}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        ),
+        enableSorting: false,
+        enableHiding: false,
+        size: 44,
+        minSize: 44,
+        maxSize: 44,
+      },
     ],
-    []
+    [onDeleteStock],
   );
 };
 
@@ -344,8 +370,67 @@ export const StockList = ({
     market: string;
   } | null>(null);
 
+  // 删除相关状态
+  const [deleteTarget, setDeleteTarget] = useState<StockData | null>(null);
+  const [selectedForDelete, setSelectedForDelete] = useState<StockData[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedRows, setSelectedRows] = useState<StockData[]>([]);
+
+  // 删除单只股票的确认弹窗
+  const handleDeleteStock = useCallback((stock: StockData) => {
+    setDeleteTarget(stock);
+    setSelectedForDelete([]);
+  }, []);
+
+  // 批量删除确认
+  const handleBatchDelete = useCallback(() => {
+    if (selectedRows.length === 0) return;
+    setDeleteTarget(null);
+    setSelectedForDelete(selectedRows);
+  }, [selectedRows]);
+
+  const confirmDelete = useCallback(async () => {
+    const symbols = deleteTarget
+      ? [deleteTarget.symbol]
+      : selectedForDelete.map((s) => s.symbol);
+
+    if (symbols.length === 0) return;
+
+    try {
+      setIsDeleting(true);
+      const params = new URLSearchParams();
+      params.set("symbols", symbols.join(","));
+
+      const response = await fetch(`/api/stocks?${params.toString()}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "删除失败");
+      }
+
+      const result = await response.json();
+      toast.success(
+        symbols.length === 1
+          ? `已删除 ${deleteTarget?.name || symbols[0]}`
+          : `已批量删除 ${result.deletedCount} 只股票`,
+      );
+      onStocksChange();
+    } catch (error) {
+      console.error("删除股票失败:", error);
+      toast.error(
+        error instanceof Error ? error.message : "删除股票失败",
+      );
+    } finally {
+      setIsDeleting(false);
+      setDeleteTarget(null);
+      setSelectedForDelete([]);
+    }
+  }, [deleteTarget, selectedForDelete, onStocksChange]);
+
   // 获取表格列定义
-  const columns = useStockColumns();
+  const columns = useStockColumns(handleDeleteStock);
 
   const fetchSignals = useCallback(async () => {
     if (stocks.length === 0) return;
@@ -496,11 +581,45 @@ export const StockList = ({
     }
   };
 
+  // 删除确认弹窗内容
+  const deleteDialogContent = useMemo(() => {
+    if (deleteTarget) {
+      return {
+        title: "删除股票",
+        description: `确定要删除「${deleteTarget.name}」(${deleteTarget.symbol}) 吗？该操作将同时删除关联的监控规则、报价、指标等所有数据，且不可恢复。`,
+        count: 1,
+      };
+    }
+    if (selectedForDelete.length > 0) {
+      const names = selectedForDelete.map((s) => s.name).join("、");
+      return {
+        title: "批量删除股票",
+        description: `确定要删除以下 ${selectedForDelete.length} 只股票吗？该操作将同时删除关联的监控规则、报价、指标等所有数据，且不可恢复。\n\n${names.length > 100 ? names.slice(0, 100) + "..." : names}`,
+        count: selectedForDelete.length,
+      };
+    }
+    return null;
+  }, [deleteTarget, selectedForDelete]);
+
+  const showDeleteDialog = !!(deleteTarget || selectedForDelete.length > 0);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">股票池</h2>
         <div className="flex gap-2">
+          {/* 批量删除按钮 */}
+          {selectedRows.length > 0 && (
+            <Button
+              onClick={handleBatchDelete}
+              variant="destructive"
+              size="sm"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              删除 ({selectedRows.length})
+            </Button>
+          )}
+
           <Button
             onClick={fetchSignals}
             disabled={isLoadingSignals}
@@ -550,60 +669,67 @@ export const StockList = ({
                   </p>
                 </div>
 
-                {/* 搜索结果列表 */}
-                {searchResults.length > 0 && !selectedSearchResult && (
-                  <div className="max-h-60 space-y-2 overflow-y-auto rounded-lg border p-2">
-                    {searchResults.map((result) => (
-                      <button
-                        key={result.symbol}
-                        onClick={() => {
-                          setSelectedSearchResult(result);
-                          setSearchQuery(`${result.name} (${result.symbol})`);
-                        }}
-                        className="w-full rounded-lg border bg-card p-3 text-left transition-all hover:bg-accent hover:shadow-sm"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-semibold">{result.name}</div>
-                            <div className="text-sm text-muted-foreground">
-                              {result.symbol}
-                            </div>
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {result.market}
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* 选中的股票 */}
-                {selectedSearchResult && (
-                  <div className="rounded-lg border-2 border-primary bg-primary/5 p-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold">
-                          {selectedSearchResult.name}
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {selectedSearchResult.symbol} ·{" "}
-                          {selectedSearchResult.market}
-                        </div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedSearchResult(null);
-                          setSearchQuery("");
-                        }}
-                      >
-                        取消选择
-                      </Button>
+                {/* 搜索状态/结果区域 - 固定高度容器防止布局抖动 */}
+                <div className="h-[140px] overflow-y-auto">
+                  {isSearching && searchResults.length === 0 && !selectedSearchResult && (
+                    <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      搜索中...
                     </div>
-                  </div>
-                )}
+                  )}
+                  {!isSearching && searchQuery && searchResults.length === 0 && !selectedSearchResult && (
+                    <div className="py-8 text-center text-sm text-muted-foreground">
+                      未找到匹配的股票
+                    </div>
+                  )}
+                  {searchResults.length > 0 && !selectedSearchResult && (
+                    <div className="space-y-1">
+                      {searchResults.map((result) => (
+                        <button
+                          key={result.symbol}
+                          onClick={() => {
+                            setSelectedSearchResult(result);
+                            setSearchQuery(`${result.name} (${result.symbol})`);
+                          }}
+                          className="w-full rounded-lg border bg-card p-2.5 text-left transition-colors hover:bg-accent"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="font-medium">{result.name}</span>
+                              <span className="ml-2 text-xs text-muted-foreground">{result.symbol}</span>
+                            </div>
+                            <span className="text-xs text-muted-foreground">{result.market}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {selectedSearchResult && (
+                    <div className="rounded-lg border-2 border-primary bg-primary/5 p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-semibold">
+                            {selectedSearchResult.name}
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            {selectedSearchResult.symbol} ·{" "}
+                            {selectedSearchResult.market}
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedSearchResult(null);
+                            setSearchQuery("");
+                          }}
+                        >
+                          取消选择
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* 分隔线 */}
                 <div className="relative">
@@ -694,24 +820,81 @@ export const StockList = ({
               showPagination={true}
               pageSize={20}
               onRowClick={(row) => setSelectedStock(row)}
+              enableRowSelection={true}
+              onSelectionChange={setSelectedRows}
             />
           </div>
 
-          {/* 移动端: 保留卡片视图 */}
+          {/* 移动端: 保留卡片视图，每张卡片带删除按钮 */}
           <div className="grid gap-4 sm:grid-cols-2 lg:hidden">
             {stocksWithSignals.map((stock) => (
-              <StockCard
-                key={stock.symbol}
-                data={stock}
-                onClick={() => {
-                  setSelectedStock(stock);
-                }}
-                showBBITrendSignal={showBBITrendSignal}
-              />
+              <div key={stock.symbol} className="relative group">
+                <StockCard
+                  data={stock}
+                  onClick={() => {
+                    setSelectedStock(stock);
+                  }}
+                  showBBITrendSignal={showBBITrendSignal}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-2 right-2 h-7 w-7 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive"
+                  onClick={() => handleDeleteStock(stock)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             ))}
           </div>
         </>
       )}
+
+      {/* 删除确认弹窗 */}
+      <Dialog
+        open={showDeleteDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setSelectedForDelete([]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{deleteDialogContent?.title}</DialogTitle>
+            <DialogDescription className="whitespace-pre-line">
+              {deleteDialogContent?.description}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteTarget(null);
+                setSelectedForDelete([]);
+              }}
+              disabled={isDeleting}
+            >
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  删除中...
+                </>
+              ) : (
+                `确认删除${deleteDialogContent && deleteDialogContent.count > 1 ? ` (${deleteDialogContent.count}只)` : ""}`
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 股票详情对话框 */}
       {selectedStock && (

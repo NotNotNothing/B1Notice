@@ -69,7 +69,7 @@ def format_symbol(symbol: str, market: str = None) -> str:
     将股票代码转换为 AKShare 格式
     AKShare 使用 6 位代码，需要根据市场添加后缀
     """
-    symbol = symbol.replace('.SH', '').replace('.SZ', '').replace('.HK', '').replace('.US', '')
+    symbol = symbol.replace('.SH', '').replace('.SZ', '').replace('.HK', '').replace('.US', '').replace('.BJ', '')
     symbol = symbol.zfill(6)
     return symbol
 
@@ -83,7 +83,37 @@ def get_market_from_code(code: str) -> str:
         return 'sz'
     elif code.startswith('5') or code.startswith('9'):
         return 'sh'
+    elif code.startswith('4') or code.startswith('8'):
+        return 'bj'
     return 'sz'
+
+
+def get_quote_from_bid_ask(code: str, market: str):
+    """通过东财盘口接口快速获取个股行情（秒级响应）"""
+    try:
+        df = safe_api_call(ak.stock_bid_ask_em, symbol=code)
+        if df is None or df.empty:
+            return None
+        values = dict(zip(df['item'], df['value']))
+        price = values.get('最新')
+        prev_close = values.get('昨收')
+        change_rate = values.get('涨幅')
+        volume = values.get('总手')
+
+        if price is None or prev_close is None:
+            return None
+
+        if change_rate is None:
+            change_rate = ((float(price) - float(prev_close)) / float(prev_close) * 100) if float(prev_close) > 0 else 0
+
+        return {
+            "price": float(price),
+            "volume": float(volume) * 100 if volume else 0,  # 总手 → 股数
+            "changeRate": round(float(change_rate), 2),
+            "market": market.upper()
+        }
+    except Exception:
+        return None
 
 
 def get_quote(symbol: str) -> dict:
@@ -91,10 +121,18 @@ def get_quote(symbol: str) -> dict:
     try:
         code = format_symbol(symbol)
         market = get_market_from_code(code)
+
+        # 优先雪球接口
         xq_quote = get_quote_from_xq(market.upper(), code)
         if xq_quote is not None:
             return xq_quote
 
+        # 东财盘口接口（秒级响应，覆盖科创板/北交所）
+        bid_ask_quote = get_quote_from_bid_ask(code, market)
+        if bid_ask_quote is not None:
+            return bid_ask_quote
+
+        # 最后兜底：全量快照
         data = get_quote_from_spot_snapshot(code)
         if data is None:
             return {"error": f"Stock {symbol} not found"}
@@ -361,6 +399,28 @@ def get_universe(market: str = 'A') -> list:
                     'A股代码',
                     'A股简称',
                     'SZ',
+                ))
+
+        # 科创板
+        if normalized_market in ('A', 'STAR'):
+            star_df = safe_api_call(ak.stock_info_sh_name_code, symbol='科创板')
+            if star_df is not None and not star_df.empty:
+                datasets.append((
+                    star_df,
+                    '证券代码',
+                    '证券简称',
+                    'SH',
+                ))
+
+        # 北交所
+        if normalized_market in ('A', 'BJ'):
+            bj_df = safe_api_call(ak.stock_info_bj_name_code)
+            if bj_df is not None and not bj_df.empty:
+                datasets.append((
+                    bj_df,
+                    '证券代码',
+                    '证券简称',
+                    'BJ',
                 ))
 
         if not datasets:

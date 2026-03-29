@@ -11,6 +11,7 @@ import {
   SortingState,
   ColumnFiltersState,
   VisibilityState,
+  RowSelectionState,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -28,7 +29,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Settings2, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface DataTableProps<TData, TValue> {
@@ -40,6 +41,8 @@ interface DataTableProps<TData, TValue> {
   showPagination?: boolean;
   pageSize?: number;
   onRowClick?: (row: TData) => void;
+  enableRowSelection?: boolean;
+  onSelectionChange?: (selectedRows: TData[]) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -51,11 +54,13 @@ export function DataTable<TData, TValue>({
   showPagination = true,
   pageSize = 10,
   onRowClick,
+  enableRowSelection = false,
+  onSelectionChange,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [rowSelection, setRowSelection] = useState({});
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
 
   const table = useReactTable({
     data,
@@ -79,24 +84,56 @@ export function DataTable<TData, TValue>({
         pageSize,
       },
     },
+    enableRowSelection,
+    getRowId: (row, index) => {
+      // 优先使用 symbol 作为唯一标识，否则用 index
+      const item = row as Record<string, unknown>;
+      return (item.symbol as string) || String(index);
+    },
   });
+
+  // 数据变化时清空选择
+  useEffect(() => {
+    setRowSelection({});
+  }, [data]);
+
+  // 选择变化时通知父组件
+  useEffect(() => {
+    if (onSelectionChange) {
+      const selectedRows = table.getFilteredSelectedRowModel().rows.map(
+        (row) => row.original
+      );
+      onSelectionChange(selectedRows);
+    }
+  }, [rowSelection, onSelectionChange, table]);
+
+  const allRowsSelected = table.getIsAllPageRowsSelected();
+  const someRowsSelected = table.getIsSomePageRowsSelected();
+  const selectedCount = table.getFilteredSelectedRowModel().rows.length;
 
   return (
     <div className="w-full space-y-4">
       {/* 工具栏：搜索和列配置 */}
       <div className="flex items-center justify-between gap-4">
-        {searchKey && (
-          <div className="flex-1 max-w-sm">
-            <Input
-              placeholder={searchPlaceholder}
-              value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ""}
-              onChange={(event) =>
-                table.getColumn(searchKey)?.setFilterValue(event.target.value)
-              }
-              className="w-full"
-            />
-          </div>
-        )}
+        <div className="flex items-center gap-4 flex-1">
+          {searchKey && (
+            <div className="flex-1 max-w-sm">
+              <Input
+                placeholder={searchPlaceholder}
+                value={(table.getColumn(searchKey)?.getFilterValue() as string) ?? ""}
+                onChange={(event) =>
+                  table.getColumn(searchKey)?.setFilterValue(event.target.value)
+                }
+                className="w-full"
+              />
+            </div>
+          )}
+          {enableRowSelection && selectedCount > 0 && (
+            <span className="text-sm text-muted-foreground whitespace-nowrap">
+              已选择 {selectedCount} 项
+            </span>
+          )}
+        </div>
         {showColumnToggle && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -135,6 +172,27 @@ export function DataTable<TData, TValue>({
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
+                  {enableRowSelection && (
+                    <TableHead
+                      style={{ width: 40, minWidth: 40, maxWidth: 40 }}
+                      className="px-2"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={allRowsSelected || someRowsSelected}
+                        ref={(el) => {
+                          if (el) {
+                            el.indeterminate = someRowsSelected && !allRowsSelected;
+                          }
+                        }}
+                        onChange={(e) =>
+                          table.toggleAllPageRowsSelected(e.target.checked)
+                        }
+                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </TableHead>
+                  )}
                   {headerGroup.headers.map((header) => {
                     const columnSize = header.column.getSize();
                     return (
@@ -167,6 +225,22 @@ export function DataTable<TData, TValue>({
                     onClick={() => onRowClick?.(row.original)}
                     className={onRowClick ? "cursor-pointer hover:bg-muted/50" : ""}
                   >
+                    {enableRowSelection && (
+                      <TableCell
+                        style={{ width: 40, minWidth: 40, maxWidth: 40 }}
+                        className="px-2"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={row.getIsSelected()}
+                          onChange={(e) =>
+                            row.toggleSelected(e.target.checked)
+                          }
+                          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </TableCell>
+                    )}
                     {row.getVisibleCells().map((cell) => {
                       const columnSize = cell.column.getSize();
                       return (
@@ -190,7 +264,7 @@ export function DataTable<TData, TValue>({
               ) : (
                 <TableRow>
                   <TableCell
-                    colSpan={columns.length}
+                    colSpan={columns.length + (enableRowSelection ? 1 : 0)}
                     className="h-24 text-center text-muted-foreground"
                   >
                     暂无数据

@@ -47,7 +47,7 @@ function delay(ms: number): Promise<void> {
 /**
  * 带重试机制的 Python 执行函数
  */
-async function runPython<T>(args: string[], maxRetries: number = 3): Promise<T> {
+async function runPython<T>(args: string[], maxRetries: number = 3, timeout: number = 30000): Promise<T> {
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -62,11 +62,11 @@ async function runPython<T>(args: string[], maxRetries: number = 3): Promise<T> 
         let stderr = '';
         let timeoutId: NodeJS.Timeout | null = null;
 
-        // 设置超时（30秒）
+        // 设置超时
         timeoutId = setTimeout(() => {
           python.kill();
-          reject(new AKShareError('Python process timeout (30s)'));
-        }, 30000);
+          reject(new AKShareError(`Python process timeout (${timeout / 1000}s)`));
+        }, timeout);
 
         python.stdout.on('data', (data) => {
           stdout += data.toString();
@@ -451,7 +451,7 @@ export class AKShareProvider implements IQuoteProvider {
     }
 
     try {
-      const result = await runPython<MarketStockInfo[]>(['universe', market.toUpperCase()]);
+      const result = await runPython<MarketStockInfo[]>(['universe', market.toUpperCase()], 3, 60000);
       return result;
     } catch (error) {
       console.error('[AKShare] 获取 A 股股票池失败:', error);

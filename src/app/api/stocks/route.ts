@@ -273,88 +273,103 @@ export async function DELETE(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const symbol = searchParams.get('symbol');
+    const symbolsParam = searchParams.get('symbols');
 
-    if (!symbol) {
+    // 解析要删除的 symbol 列表
+    const symbols: string[] = [];
+    if (symbolsParam) {
+      symbols.push(...symbolsParam.split(',').map(s => s.trim()).filter(Boolean));
+    } else if (symbol) {
+      symbols.push(symbol);
+    }
+
+    if (symbols.length === 0) {
       return NextResponse.json(
-        { error: 'Stock symbol is required' },
+        { error: '请提供要删除的股票代码' },
         { status: 400 },
       );
     }
 
-    // 确保只能删除自己的股票
-    const stock = await prisma.stock.findFirst({
+    // 查询所有要删除的股票
+    const stocks = await prisma.stock.findMany({
       where: {
-        symbol,
+        symbol: { in: symbols },
         userId: session.user.id,
       },
     });
 
-    if (!stock) {
+    if (stocks.length === 0) {
       return NextResponse.json(
-        { error: '未找到该股票或无权限删除' },
+        { error: '未找到要删除的股票或无权限删除' },
         { status: 404 },
       );
     }
 
-    // Delete in the correct order to handle foreign key constraints
+    const stockIds = stocks.map(s => s.id);
+
+    // 在事务中按顺序删除所有关联数据
     await prisma.$transaction(async (tx) => {
-      // 1. Delete notifications related to monitors of this stock
+      // 1. 删除关联的通知
       await tx.notification.deleteMany({
         where: {
           monitor: {
-            stockId: stock.id
+            stockId: { in: stockIds }
           }
         }
       });
 
-      // 2. Delete monitors for this stock
+      // 2. 删除监控规则
       await tx.monitor.deleteMany({
         where: {
-          stockId: stock.id
+          stockId: { in: stockIds }
         }
       });
 
-      // 3. Delete quotes for this stock (this will also handle KDJ relations)
+      // 3. 删除报价
       await tx.quote.deleteMany({
         where: {
-          stockId: stock.id
+          stockId: { in: stockIds }
         }
       });
 
-      // 4. Delete KDJ records for this stock
+      // 4. 删除 KDJ 记录
       await tx.kdj.deleteMany({
         where: {
-          stockId: stock.id
+          stockId: { in: stockIds }
         }
       });
 
-      // 5. Delete BBI records for this stock
+      // 5. 删除 BBI 记录
       await tx.bbi.deleteMany({
         where: {
-          stockId: stock.id
+          stockId: { in: stockIds }
         }
       });
 
-      // 6. Delete Zhixing trend records for this stock
+      // 6. 删除知行趋势记录
       await tx.zhixingTrend.deleteMany({
         where: {
-          stockId: stock.id,
+          stockId: { in: stockIds },
         },
       });
 
-      // 7. Finally delete the stock
-      await tx.stock.delete({
+      // 7. 删除股票
+      await tx.stock.deleteMany({
         where: {
-          id: stock.id
+          id: { in: stockIds }
         }
       });
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      deletedCount: stocks.length,
+      notFoundSymbols: symbols.filter(s => !stocks.some(st => st.symbol === s)),
+    });
   } catch (error) {
-    console.error('Failed to delete stock:', error);
+    console.error('删除股票失败:', error);
     return NextResponse.json(
-      { error: 'Failed to delete stock' },
+      { error: '删除股票失败' },
       { status: 500 },
     );
   }
