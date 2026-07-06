@@ -4,6 +4,7 @@ nixPkgs = [
   "python3",
   "python3Packages.pip",
   "python3Packages.setuptools",
+  "python3Packages.wheel",
   "gcc",
   "pkg-config",
   "postgresql",
@@ -13,7 +14,7 @@ nixPkgs = [
 [phases.install]
 cmds = [
   "pnpm --version && pnpm config set registry ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com} && pnpm config set fetch-retries 5 && pnpm config set fetch-retry-mintimeout 20000 && pnpm config set fetch-retry-maxtimeout 120000 && pnpm config set network-timeout 300000 && pnpm install --frozen-lockfile",
-  "python3 -m pip install --break-system-packages --no-cache-dir -i ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple} akshare requests"
+  "python3 -c \"import sys; print(sys.executable)\" && pip --version && mkdir -p /app/.python-packages && pip install --no-cache-dir --target /app/.python-packages -i ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple} akshare requests"
 ]
 
 [phases.build]
@@ -30,6 +31,8 @@ NODE_ENV = "production"
 NEXT_TELEMETRY_DISABLED = "1"
 DB_TYPE = "pgsql"
 PYTHONIOENCODING = "utf-8"
+PYTHONPATH = "/app/.python-packages"
+NIXPACKS_PATH = "/app/node_modules/.bin"
 NPM_CONFIG_REGISTRY = "https://registry.npmmirror.com"
 PIP_INDEX_URL = "https://pypi.tuna.tsinghua.edu.cn/simple"
 NPM_CONFIG_FETCH_RETRIES = "5"
