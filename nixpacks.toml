@@ -2,6 +2,8 @@
 nixPkgs = [
   "nodejs_22",
   "python3",
+  "python3Packages.pip",
+  "python3Packages.setuptools",
   "gcc",
   "pkg-config",
   "postgresql",
