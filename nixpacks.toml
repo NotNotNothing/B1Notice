@@ -24,7 +24,7 @@ cmds = [
 ]
 
 [start]
-cmd = "sh -lc 'set -a && [ -f .env ] && . .env; set +a; DB_TYPE=pgsql pnpm run db:deploy && exec pnpm exec next start --hostname 0.0.0.0 --port ${PORT:-3000}'"
+cmd = "sh -lc 'set -a && [ -f .env ] && . .env; set +a; DB_TYPE=pgsql pnpm run db:push && exec pnpm exec next start --hostname 0.0.0.0 --port ${PORT:-3000}'"
 
 [variables]
 NODE_ENV = "production"
