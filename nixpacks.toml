@@ -24,7 +24,7 @@ cmds = [
 ]
 
 [start]
-cmd = "sh -lc 'set -a && [ -f .env ] && . .env; set +a; DB_TYPE=pgsql npx prisma db push --schema ./prisma/pgsql/schema.prisma --accept-data-loss && exec pnpm exec next start --hostname 0.0.0.0 --port ${PORT:-3000}'"
+cmd = "sh -lc 'set -a && [ -f .env ] && . .env; set +a; DB_TYPE=pgsql npx prisma db push --schema ./prisma/pgsql/schema.prisma --accept-data-loss && node scripts/create-default-user.js && exec pnpm exec next start --hostname 0.0.0.0 --port ${PORT:-3000}'"
 
 [variables]
 NODE_ENV = "production"
