@@ -24,9 +24,9 @@ cp .env.docker.example .env.docker
 - `NEXTAUTH_SECRET`: NextAuth 密钥
 - `NEXTAUTH_URL`: 当前环境对外访问地址
 - `PUSHDEER_KEY`: PushDeer 推送服务 Key
-- `LONGPORT_APP_KEY`: LongPort API 的 App Key
-- `LONGPORT_APP_SECRET`: LongPort API 的 App Secret
-- `LONGPORT_ACCESS_TOKEN`: LongPort API 的 Access Token
+- `LONGBRIDGE_APP_KEY`: Longbridge API 的 App Key
+- `LONGBRIDGE_APP_SECRET`: Longbridge API 的 App Secret
+- `LONGBRIDGE_ACCESS_TOKEN`: Longbridge API 的 Access Token
 - `NPM_CONFIG_REGISTRY` / `PIP_INDEX_URL`: Docker / Nixpacks 构建镜像源配置
 
 ## 开发环境启动
@@ -113,9 +113,9 @@ npm run docker:dev:clean
 - `DATABASE_URL`
 - `NEXTAUTH_SECRET`
 - `NEXTAUTH_URL`
-- `LONGPORT_APP_KEY`
-- `LONGPORT_APP_SECRET`
-- `LONGPORT_ACCESS_TOKEN`
+- `LONGBRIDGE_APP_KEY`
+- `LONGBRIDGE_APP_SECRET`
+- `LONGBRIDGE_ACCESS_TOKEN`
 - `PUSHDEER_KEY`
 
 如果线上环境不需要镜像源，可在平台环境变量中覆盖：

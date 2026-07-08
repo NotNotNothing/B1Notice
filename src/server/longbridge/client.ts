@@ -10,6 +10,7 @@ import {
   ZhixingTrendResult,
   SellSignalResult,
 } from '../../utils/indicators';
+import { assertLongbridgeEnv } from './env';
 
 const ADJUST_TYPE_NO_ADJUST = 0;
 
@@ -24,6 +25,7 @@ export class LongBridgeClient {
   private quoteContext: QuoteContext | null = null;
 
   constructor() {
+    assertLongbridgeEnv();
     this.config = Config.fromEnv();
   }
 

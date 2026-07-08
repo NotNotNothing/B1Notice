@@ -20,6 +20,10 @@ import {
   ZhixingTrendOptions,
 } from '../../../utils/indicators';
 import { Config, QuoteContext, SecurityQuote, Candlestick } from 'longport';
+import {
+  assertLongbridgeEnv,
+  hasLongbridgeCredentials,
+} from '../../longbridge/env';
 
 const ADJUST_TYPE_NO_ADJUST = 0;
 
@@ -35,6 +39,7 @@ export class LongbridgeProvider implements IQuoteProvider {
     if (this.initialized) return;
 
     try {
+      assertLongbridgeEnv();
       this.config = Config.fromEnv();
       this.initialized = true;
     } catch (error) {
@@ -55,12 +60,12 @@ export class LongbridgeProvider implements IQuoteProvider {
 
   async isAvailable(): Promise<boolean> {
     try {
+      if (!hasLongbridgeCredentials()) {
+        return false;
+      }
+
       await this.initialize();
-      const hasCredentials =
-        !!process.env.LONGPORT_APP_KEY &&
-        !!process.env.LONGPORT_APP_SECRET &&
-        !!process.env.LONGPORT_ACCESS_TOKEN;
-      return hasCredentials;
+      return true;
     } catch {
       return false;
     }
