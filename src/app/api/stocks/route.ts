@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/auth.config';
-import { getQuoteProvider, type DataSourceType } from '@/server/datasource';
+import { getQuoteProvider, inferDataSourceFromSymbol, type DataSourceType } from '@/server/datasource';
 import {
   fetchAndStoreStockData,
   fetchSaveAndUpdateStock,
@@ -125,16 +125,10 @@ export async function PUT() {
       return NextResponse.json({ error: '未登录' }, { status: 401 });
     }
 
-    const [user, stocks] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { dataSource: true },
-      }),
-      prisma.stock.findMany({
-        where: { userId: session.user.id },
-        select: { id: true, symbol: true, market: true },
-      }),
-    ]);
+    const stocks = await prisma.stock.findMany({
+      where: { userId: session.user.id },
+      select: { id: true, symbol: true, market: true },
+    });
 
     if (stocks.length === 0) {
       return NextResponse.json({
@@ -144,15 +138,13 @@ export async function PUT() {
       });
     }
 
-    const provider = await getQuoteProvider(
-      (user?.dataSource as DataSourceType | null) ?? 'longbridge',
-    );
-
     let refreshedCount = 0;
     let failedCount = 0;
 
     for (const stock of stocks) {
       try {
+        const source = inferDataSourceFromSymbol(stock.symbol, stock.market);
+        const provider = await getQuoteProvider(source);
         await fetchSaveAndUpdateStock(
           stock.id,
           stock.symbol,
@@ -189,18 +181,12 @@ export async function POST(request: Request) {
     const { symbol, market } = await request.json();
     const normalizedSymbol = String(symbol).toUpperCase();
 
-    const [user, existingStock] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { dataSource: true },
-      }),
-      prisma.stock.findFirst({
-        where: {
-          userId: session.user.id,
-          symbol: normalizedSymbol,
-        },
-      }),
-    ]);
+    const existingStock = await prisma.stock.findFirst({
+      where: {
+        userId: session.user.id,
+        symbol: normalizedSymbol,
+      },
+    });
 
     if (existingStock) {
       return NextResponse.json(
@@ -209,9 +195,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const provider = await getQuoteProvider(
-      (user?.dataSource as DataSourceType | null) ?? 'longbridge',
-    );
+    const dataSource = inferDataSourceFromSymbol(normalizedSymbol, market);
+    const provider = await getQuoteProvider(dataSource);
     const staticInfo = await provider.getStockInfo(normalizedSymbol);
 
     if (!staticInfo?.nameCn) {
